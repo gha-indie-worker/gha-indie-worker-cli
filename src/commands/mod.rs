@@ -17,4 +17,3 @@ pub fn dispatch(config: &Config, command: Command) -> Result<(), CliError> {
         Command::Status => status::run(config),
     }
 }
-

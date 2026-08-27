@@ -54,10 +54,13 @@ where
             other => return Err(CliError::Usage(format!("unknown flag {other}"))),
         }
     }
-    Ok(Invocation { command, api_base, json })
+    Ok(Invocation {
+        command,
+        api_base,
+        json,
+    })
 }
 
 pub fn help_text() -> &'static str {
     "ghaiw — GHA Indie Worker CLI\n\nCommands:\n  health\n  status\n"
 }
-
