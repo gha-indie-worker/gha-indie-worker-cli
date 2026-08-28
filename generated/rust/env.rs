@@ -3,6 +3,7 @@
 
 pub const API_BASE: &str = "GHA_INDIE_WORKER_API_BASE";
 pub const API_BASE_DEFAULT: &str = "http://127.0.0.1:8080";
+pub const ENV_MAP_PROBE: &str = "ENV_MAP_PROBE";
 pub const JSON: &str = "GHA_INDIE_WORKER_JSON";
 pub const JSON_DEFAULT: &str = "false";
 
@@ -10,6 +11,8 @@ pub const JSON_DEFAULT: &str = "false";
 pub struct CliEnv {
     /// API HTTP base URL.
     pub api_base: &'static str,
+    /// Runtime environment key ENV_MAP_PROBE.
+    pub env_map_probe: &'static str,
     /// Emit JSON.
     pub json: &'static str,
 }
@@ -17,6 +20,7 @@ pub struct CliEnv {
 impl CliEnv {
     pub const KEYS: Self = Self {
         api_base: API_BASE,
+        env_map_probe: ENV_MAP_PROBE,
         json: JSON,
     };
 }

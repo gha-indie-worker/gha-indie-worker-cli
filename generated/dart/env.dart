@@ -5,6 +5,7 @@ final class CliEnv {
 
   static const String apiBase = 'GHA_INDIE_WORKER_API_BASE';
   static const String apiBaseDefault = 'http://127.0.0.1:8080';
+  static const String envMapProbe = 'ENV_MAP_PROBE';
   static const String json = 'GHA_INDIE_WORKER_JSON';
   static const String jsonDefault = 'false';
 }

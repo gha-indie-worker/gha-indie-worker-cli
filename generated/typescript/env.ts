@@ -2,15 +2,18 @@
 
 export const API_BASE = "GHA_INDIE_WORKER_API_BASE" as const;
 export const API_BASE_DEFAULT = "http://127.0.0.1:8080" as const;
+export const ENV_MAP_PROBE = "ENV_MAP_PROBE" as const;
 export const JSON = "GHA_INDIE_WORKER_JSON" as const;
 export const JSON_DEFAULT = "false" as const;
 
 export interface CliEnv {
   readonly GHA_INDIE_WORKER_API_BASE: string;
+  readonly ENV_MAP_PROBE?: string;
   readonly GHA_INDIE_WORKER_JSON: boolean;
 }
 
 export const EnvKeys = {
   API_BASE: API_BASE,
+  ENV_MAP_PROBE: ENV_MAP_PROBE,
   JSON: JSON,
 } as const;

@@ -23,3 +23,10 @@ help = "Check API health."
 
 [commands.status]
 help = "Show service status."
+
+
+[flags.env-map-probe]
+env = "ENV_MAP_PROBE"
+long = "env-map-probe"
+type = "string"
+help = "Runtime environment key ENV_MAP_PROBE."
