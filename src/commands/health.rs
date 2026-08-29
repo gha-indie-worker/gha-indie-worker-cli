@@ -15,4 +15,3 @@ pub fn run(config: &Config) -> Result<(), CliError> {
     }
     Ok(())
 }
-

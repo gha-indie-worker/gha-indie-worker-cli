@@ -1,17 +1,32 @@
-# flags-2-env surface for `ghaiw`
-[flags.config]
-env = "GHA_INDIE_WORKER_CONFIG"
-long = "config"
-help = "Path to TOML configuration"
+[help]
+url = "https://github.com/gha-indie-worker/gha-indie-worker-cli"
 
-[flags.api_base]
+[parse]
+allow_unknown = false
+
+[flags.api-base]
 env = "GHA_INDIE_WORKER_API_BASE"
-long = "api-base"
-help = "API HTTP base URL"
+aliases = ["api-base"]
+type = "string"
+default = "http://127.0.0.1:8080"
+help = "API HTTP base URL."
 
 [flags.json]
 env = "GHA_INDIE_WORKER_JSON"
-long = "json"
-switch = true
-help = "Emit JSON"
+aliases = ["json"]
+type = "boolean"
+default = false
+help = "Emit JSON."
 
+[commands.health]
+help = "Check API health."
+
+[commands.status]
+help = "Show service status."
+
+
+[flags.env-map-probe]
+env = "ENV_MAP_PROBE"
+long = "env-map-probe"
+type = "string"
+help = "Runtime environment key ENV_MAP_PROBE."
