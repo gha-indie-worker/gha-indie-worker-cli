@@ -14,3 +14,7 @@ Cargo.lock
 # Local temporary directories and repository-owned worktrees
 tmp/
 temp/
+
+# Repository-local temporary data and authorized Git worktrees
+tmp/worktrees
+temp/worktrees
