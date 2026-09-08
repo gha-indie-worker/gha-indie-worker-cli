@@ -3,7 +3,6 @@
 #[path = "../generated/rust/env.rs"]
 mod env;
 
-
 use crate::env_map::{truthy, value, EnvMap};
 use crate::error::CliError;
 
