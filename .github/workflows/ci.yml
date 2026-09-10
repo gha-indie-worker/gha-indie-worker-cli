@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: gha-indie-worker/gha-indie-worker-interfaces
-          ref: 9d7f7376627f59e43efcceb927062614ab8a7b76
+          ref: 0d0d932e11a80d20219548a93955b7dc8d748696
           path: .contracts
           persist-credentials: false
 
@@ -71,7 +71,7 @@ jobs:
           node .tjsv/bin/typespec-json-schema-validator.mjs check \
             --typespec=.contracts/contracts/indiebuild.tsp \
             --schema=.contracts/contracts/indiebuild.schema.json \
-            --instances=.contracts/contracts/instances/IndieBuildConfig \
+            --instances=.contracts/contracts/indiebuild-instances \
             --report=.typespec-json-schema-validator/indiebuild-report.json \
             --sarif=.typespec-json-schema-validator/indiebuild-report.sarif \
             --contract-ir=.typespec-json-schema-validator/indiebuild-contract-ir.json \
