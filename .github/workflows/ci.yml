@@ -22,8 +22,8 @@ jobs:
           toolchain: '1.90.0'
           components: rustfmt, clippy
 
-      - name: Generate current dependency lock evidence
-        run: cargo generate-lockfile
+      - name: Verify committed Cargo lock
+        run: cargo metadata --locked --format-version 1 >/dev/null
 
       - name: Validate Zed package metadata shape
         run: |
