@@ -34,6 +34,7 @@ pub fn parse_cli_flags(argv: &[String], config_path: &Path) -> Result<(Command, 
         "" | "help" => Command::Help,
         "health" => Command::Health,
         "status" => Command::Status,
+        "indiebuild-validate" => Command::IndieBuildValidate,
         other => return Err(CliError::Usage(format!("unknown command {other}"))),
     };
     Ok((command, parsed.flags.into_iter().collect()))
@@ -77,6 +78,17 @@ mod tests {
         assert_eq!(command, Command::Health);
         assert_eq!(value(&env, "ENV_MAP_PROBE"), Some("keep"));
         assert_eq!(std::env::var_os("ENV_MAP_PROBE"), before);
+    }
+
+    #[test]
+    fn indiebuild_command_is_owned_by_flags_2_env() {
+        let (command, _) = apply_cli_flags_from(
+            vec!["cli".into(), "indiebuild-validate".into()],
+            EnvMap::new(),
+            &config_path(),
+        )
+        .expect("valid flags");
+        assert_eq!(command, Command::IndieBuildValidate);
     }
 
     #[test]
