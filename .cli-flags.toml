@@ -18,6 +18,13 @@ type = "boolean"
 default = false
 help = "Emit JSON."
 
+[flags.indiebuild-config]
+env = "INDIEBUILD_CONFIG"
+aliases = ["indiebuild-config"]
+type = "string"
+default = ".indiebuild.toml"
+help = "Path to the repository IndieBuild TOML contract."
+
 [commands.health]
 help = "Check API health."
 
