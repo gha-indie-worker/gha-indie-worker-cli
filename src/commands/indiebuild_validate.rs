@@ -1,13 +1,9 @@
 #![forbid(unsafe_code)]
 
-use crate::{
-    config::Config,
-    error::CliError,
-    indiebuild::{IndieBuildConfig, DEFAULT_CONFIG_PATH},
-};
+use crate::{config::Config, error::CliError, indiebuild::IndieBuildConfig};
 
 pub fn run(config: &Config) -> Result<(), CliError> {
-    let contract = IndieBuildConfig::load(DEFAULT_CONFIG_PATH)?;
+    let contract = IndieBuildConfig::load(&config.indiebuild_config)?;
     if config.json {
         println!("{}", contract.normalized_json()?);
         return Ok(());
@@ -16,7 +12,7 @@ pub fn run(config: &Config) -> Result<(), CliError> {
     let target = contract.default();
     println!(
         "valid {}: role={:?} default_target={} profile={} platform={:?} path={}",
-        DEFAULT_CONFIG_PATH,
+        config.indiebuild_config,
         contract.repository_role,
         target.name,
         target.profile,
