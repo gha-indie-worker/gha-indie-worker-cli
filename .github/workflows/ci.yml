@@ -22,23 +22,31 @@ jobs:
           toolchain: '1.90.0'
           components: rustfmt, clippy
 
+      - name: Generate current dependency lock evidence
+        run: |
+          set -euo pipefail
+          cargo generate-lockfile
+          printf 'CARGO_LOCK_BASE64=' 
+          base64 -w0 Cargo.lock
+          printf '\n'
+
       - name: Rust formatting
         run: cargo fmt --all -- --check
 
       - name: Rust tests
-        run: cargo test --all-targets
+        run: cargo test --all-targets --locked
 
       - name: Rust Clippy
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --all-targets --locked -- -D warnings
 
       - name: Validate repository IndieBuild config through flags-2-env CLI
-        run: cargo run --quiet -- indiebuild-validate --json > /tmp/indiebuild.normalized.json
+        run: cargo run --quiet --locked -- indiebuild-validate --json > /tmp/indiebuild.normalized.json
 
-      - name: Check out exact IndieBuild authority candidate
+      - name: Check out exact merged IndieBuild authorities
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: gha-indie-worker/gha-indie-worker-interfaces
-          ref: 0d0d932e11a80d20219548a93955b7dc8d748696
+          ref: 634859430cba8b295c64a6b84c8ef814e0cb31a8
           path: .contracts
           persist-credentials: false
 
