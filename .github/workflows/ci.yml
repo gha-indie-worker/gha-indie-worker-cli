@@ -23,12 +23,19 @@ jobs:
           components: rustfmt, clippy
 
       - name: Generate current dependency lock evidence
+        run: cargo generate-lockfile
+
+      - name: Validate Zed package metadata shape
         run: |
-          set -euo pipefail
-          cargo generate-lockfile
-          printf 'CARGO_LOCK_BASE64=' 
-          base64 -w0 Cargo.lock
-          printf '\n'
+          python3 - <<'PY'
+          import pathlib, tomllib
+          pkg = tomllib.loads(pathlib.Path('.zpkg.toml').read_text())
+          lock = tomllib.loads(pathlib.Path('.zpkg.lock').read_text())
+          assert pkg['package']['org'] == 'gha-indie-worker'
+          assert pkg['package']['name'] == 'gha-indie-worker-cli'
+          assert '--locked' in pkg['build']['command']
+          assert lock['version'] == 1
+          PY
 
       - name: Rust formatting
         run: cargo fmt --all -- --check
@@ -100,11 +107,12 @@ jobs:
           TSJSV_VERIFY_VERIFICATION: .typespec-json-schema-validator/indiebuild-consumer-verification.json
         run: node .tjsv/scripts/verify-consumer.mjs
 
-      - name: Retain contract evidence
+      - name: Retain contract and lock evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: gha-indie-worker-cli-indiebuild-evidence
           path: |
+            Cargo.lock
             .typespec-json-schema-validator/
             /tmp/indiebuild.normalized.json
           if-no-files-found: error
