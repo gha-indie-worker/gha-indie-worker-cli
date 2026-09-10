@@ -94,7 +94,10 @@ impl IndieBuildConfig {
             )));
         }
         let input = fs::read_to_string(path).map_err(|error| {
-            CliError::Config(format!("cannot read {} as UTF-8 text: {error}", path.display()))
+            CliError::Config(format!(
+                "cannot read {} as UTF-8 text: {error}",
+                path.display()
+            ))
         })?;
         Self::parse(&input)
     }
@@ -186,7 +189,11 @@ fn validate_target(target: &Target) -> Result<(), CliError> {
     validate_env_list("target.env", &target.env)?;
     validate_env_list("target.secret_env", &target.secret_env)?;
 
-    let plain = target.env.iter().map(String::as_str).collect::<HashSet<_>>();
+    let plain = target
+        .env
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
     if let Some(duplicate) = target
         .secret_env
         .iter()
@@ -354,14 +361,20 @@ timeout_seconds = 1800
 
     #[test]
     fn mixed_requires_both_roles() {
-        let input = SERVER.replace("repository_role = \"server\"", "repository_role = \"mixed\"");
+        let input = SERVER.replace(
+            "repository_role = \"server\"",
+            "repository_role = \"mixed\"",
+        );
         assert!(IndieBuildConfig::parse(&input).is_err());
     }
 
     #[test]
     fn client_target_cannot_push_or_deploy() {
         let input = SERVER
-            .replace("repository_role = \"server\"", "repository_role = \"client\"")
+            .replace(
+                "repository_role = \"server\"",
+                "repository_role = \"client\"",
+            )
             .replace("role = \"server\"", "role = \"client\"")
             .replace("allow_push = false", "allow_push = true");
         assert!(IndieBuildConfig::parse(&input).is_err());
