@@ -24,6 +24,8 @@ help = "Check API health."
 [commands.status]
 help = "Show service status."
 
+[commands.indiebuild-validate]
+help = "Validate repository-root .indiebuild.toml and print the normalized contract."
 
 [flags.env-map-probe]
 env = "ENV_MAP_PROBE"
