@@ -1,4 +1,33 @@
+[package]
+org = "gha-indie-worker"
 name = "gha-indie-worker-cli"
-kind = "cli"
 version = "0.1.0"
+description = "CLI for the GHA Indie Worker control plane"
+license = "MIT"
+language = "rust"
 
+[package.repository]
+vcs = "git"
+url = "https://github.com/gha-indie-worker/gha-indie-worker-cli"
+
+[dependencies]
+
+[build]
+command = "cargo build --release --locked --bin ghaiw"
+outputs = ["target/release/ghaiw"]
+
+[bin]
+ghaiw = "target/release/ghaiw"
+
+[install]
+adapter = "none"
+dir = ".vendor/.zed"
+
+[publish]
+include_readme = true
+tag_format = "v{version}"
+smoke_test = "test -x \"$ZED_PKG_TEST_TARGET/target/release/ghaiw\" && \"$ZED_PKG_TEST_TARGET/target/release/ghaiw\" --help >/dev/null"
+exclude = [".env", ".env.*", ".direnv/**", ".zed/**", ".zed-pack/**", ".vendor/.zed/**", "target/**", "tmp/**", "**/*.log", ".DS_Store"]
+
+[scripts]
+test = "cargo test --all-targets --locked"
