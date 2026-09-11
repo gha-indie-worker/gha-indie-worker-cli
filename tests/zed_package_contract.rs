@@ -40,7 +40,10 @@ fn zed_package_metadata_matches_the_rust_binary_contract() {
     let cargo_bin_name = required_str(cargo_bin, &["name"]);
     let cargo_bin_path = required_str(cargo_bin, &["path"]);
 
-    assert_eq!(required_str(&package, &["package", "org"]), "gha-indie-worker");
+    assert_eq!(
+        required_str(&package, &["package", "org"]),
+        "gha-indie-worker"
+    );
     assert_eq!(
         required_str(&package, &["package", "name"]),
         cargo_package_name,
@@ -55,7 +58,9 @@ fn zed_package_metadata_matches_the_rust_binary_contract() {
 
     let build_command = required_str(&package, &["build", "command"]);
     assert!(
-        build_command.split_whitespace().any(|arg| arg == "--locked"),
+        build_command
+            .split_whitespace()
+            .any(|arg| arg == "--locked"),
         "Zed build must consume the committed Cargo.lock"
     );
     assert!(
