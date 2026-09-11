@@ -25,22 +25,10 @@ jobs:
       - name: Verify committed Cargo lock
         run: cargo metadata --locked --format-version 1 >/dev/null
 
-      - name: Validate Zed package metadata shape
-        run: |
-          python3 - <<'PY'
-          import pathlib, tomllib
-          pkg = tomllib.loads(pathlib.Path('.zpkg.toml').read_text())
-          lock = tomllib.loads(pathlib.Path('.zpkg.lock').read_text())
-          assert pkg['package']['org'] == 'gha-indie-worker'
-          assert pkg['package']['name'] == 'gha-indie-worker-cli'
-          assert '--locked' in pkg['build']['command']
-          assert lock['version'] == 1
-          PY
-
       - name: Rust formatting
         run: cargo fmt --all -- --check
 
-      - name: Rust tests
+      - name: Rust tests, including Zed package metadata contract
         run: cargo test --all-targets --locked
 
       - name: Rust Clippy
