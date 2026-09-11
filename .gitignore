@@ -8,5 +8,11 @@
 .env.*
 !.env.example
 *.sqlite
-Cargo.lock
+.zed/
+.zed-pack/
+.vendor/.zed/
 
+
+# Local temporary directories and repository-owned worktrees
+tmp/
+temp/

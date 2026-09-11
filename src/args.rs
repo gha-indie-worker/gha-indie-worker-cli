@@ -7,6 +7,7 @@ pub enum Command {
     Help,
     Health,
     Status,
+    IndieBuildValidate,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -32,6 +33,10 @@ where
             }
             "status" => {
                 command = Command::Status;
+                items.next();
+            }
+            "indiebuild-validate" => {
+                command = Command::IndieBuildValidate;
                 items.next();
             }
             "-h" | "--help" | "help" => {
@@ -62,5 +67,5 @@ where
 }
 
 pub fn help_text() -> &'static str {
-    "ghaiw — GHA Indie Worker CLI\n\nCommands:\n  health\n  status\n"
+    "ghaiw — GHA Indie Worker CLI\n\nCommands:\n  health\n  status\n  indiebuild-validate\n"
 }
