@@ -94,3 +94,10 @@ in this tree:
 Those steps are deliberately **not** in the CI job. A toolchain install costs far
 more Actions minutes than the Python pass, and we are budget-conscious about
 runner time. Run them locally, and in the nightly job on the sibling `-test` org.
+
+### `RS003` — panic-based control flow (`unwrap`/`expect`/`panic!`)
+
+*typed errors* · 1 occurrence at baseline
+
+Return `Result<T, E>` with a domain error enum and propagate with `?`; reserve panics for genuinely unreachable invariants proven by types.
+
