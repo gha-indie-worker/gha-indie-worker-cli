@@ -32,8 +32,7 @@ fn run() -> Result<(), CliError> {
         .iter()
         .any(|argument| matches!(argument.as_str(), "-h" | "--help" | "help"))
     {
-        print!("{}", args::help_text());
-        return Ok(());
+        return runtime::emit_human(args::help_text());
     }
 
     let mut consumer_argv = Vec::with_capacity(shared.passthrough.len() + 1);
