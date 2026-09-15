@@ -23,6 +23,22 @@ pub fn current() -> RuntimePolicy {
     })
 }
 
+pub fn emit_human(value: &str) -> Result<(), CliError> {
+    let runtime = current();
+    let stdout = io::stdout();
+    let mut emitter = ProtocolEmitter::new(stdout.lock(), StreamRole::Primary);
+    let line = paint(
+        runtime.color_stdout(),
+        ColorRole::Info,
+        value.trim_end_matches('\n'),
+    );
+    match top_level_io(emitter.emit_primary_human_line(&line))
+        .map_err(|error| CliError::Command(format!("output failed: {error}")))?
+    {
+        EmitDisposition::Written | EmitDisposition::ConsumerClosed => Ok(()),
+    }
+}
+
 pub fn emit(json: bool, human: impl std::fmt::Display, machine: &str) -> Result<(), CliError> {
     let runtime = current();
     let stdout = io::stdout();
