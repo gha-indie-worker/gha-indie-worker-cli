@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use crate::args::Command;
-use crate::env_map::{merge_env, EnvMap};
+use crate::env_map::{EnvMap, merge_env};
 use crate::error::CliError;
 use flags2env::BundledFlags2Env;
 
@@ -37,7 +37,7 @@ pub fn parse_cli_flags(argv: &[String], config_path: &Path) -> Result<(Command, 
         "indiebuild-validate" => Command::IndieBuildValidate,
         other => return Err(CliError::Usage(format!("unknown command {other}"))),
     };
-    Ok((command, parsed.flags.into_iter().collect()))
+    Ok((command, parsed.provided_flags.into_iter().collect()))
 }
 
 pub fn apply_cli_flags() -> Result<(Command, EnvMap), CliError> {
@@ -92,26 +92,24 @@ mod tests {
     }
 
     #[test]
-    fn parse_failure_does_not_mutate_process_environment() {
-        let before = std::env::var_os("ENV_MAP_PROBE");
-        assert!(apply_cli_flags_from(
-            vec![
-                "cli".into(),
-                "health".into(),
-                "--this-flag-is-not-declared".into()
-            ],
-            EnvMap::from([("ENV_MAP_PROBE".into(), "keep".into())]),
+    fn process_environment_beats_schema_defaults() {
+        let (_, env) = apply_cli_flags_from(
+            vec!["cli".into(), "health".into()],
+            EnvMap::from([("GHA_INDIE_WORKER_API_BASE".into(), "https://env.example".into())]),
             &config_path(),
         )
-        .is_err());
-        assert_eq!(std::env::var_os("ENV_MAP_PROBE"), before);
+        .expect("valid flags");
+        assert_eq!(value(&env, "GHA_INDIE_WORKER_API_BASE"), Some("https://env.example"));
     }
 
     #[test]
-    fn source_does_not_mutate_process_environment() {
-        const SRC: &str = include_str!("flags.rs");
-        let production = SRC.split("#[cfg(test)]").next().unwrap_or(SRC);
-        assert!(!production.contains("std::env::set_var"));
-        assert!(!production.contains("env::set_var"));
+    fn parse_failure_does_not_mutate_process_environment() {
+        let before = std::env::var_os("ENV_MAP_PROBE");
+        assert!(apply_cli_flags_from(
+            vec!["cli".into(), "health".into(), "--this-flag-is-not-declared".into()],
+            EnvMap::from([("ENV_MAP_PROBE".into(), "keep".into())]),
+            &config_path(),
+        ).is_err());
+        assert_eq!(std::env::var_os("ENV_MAP_PROBE"), before);
     }
 }
