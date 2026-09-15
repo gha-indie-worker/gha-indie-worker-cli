@@ -7,3 +7,4 @@ pub mod env_map;
 pub mod error;
 pub mod flags;
 pub mod indiebuild;
+pub mod runtime;
