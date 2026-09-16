@@ -8,13 +8,16 @@ on:
 permissions:
   contents: read
 
+env:
+  ZED_CLI_REV: dbd63f1d87d12c2e8cb9a8c600fae9b79f94e559
+
 jobs:
   rust-and-indiebuild:
     # PR verification is deferred to gha-indie-worker on indiebuild.dev. Keep
     # push CI intact, but skip before runner allocation for pull requests.
     if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -24,6 +27,26 @@ jobs:
         with:
           toolchain: '1.90.0'
           components: rustfmt, clippy
+
+      - name: Build audited Zed CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo install \
+            --locked \
+            --git https://github.com/zed-pkg/zed-cli.git \
+            --rev "$ZED_CLI_REV" \
+            --root "$RUNNER_TEMP/zed-cli" \
+            --bin zed
+          echo "$RUNNER_TEMP/zed-cli/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/zed-cli/bin/zed" --version
+
+      - name: Install frozen Zed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          zed validate --require-lock
+          zed install --frozen --install-mode copy
 
       - name: Verify committed Cargo lock
         run: cargo metadata --locked --format-version 1 >/dev/null
@@ -104,6 +127,7 @@ jobs:
           name: gha-indie-worker-cli-indiebuild-evidence
           path: |
             Cargo.lock
+            .zpkg.lock
             .typespec-json-schema-validator/
             /tmp/indiebuild.normalized.json
           if-no-files-found: error

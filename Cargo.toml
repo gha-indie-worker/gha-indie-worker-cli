@@ -1,23 +1,22 @@
-    [package]
-    name = "gha-indie-worker-cli"
-    version = "0.1.0"
-    edition = "2021"
-    license = "MIT"
-    description = "CLI for GHA Indie Worker"
-    repository = "https://github.com/gha-indie-worker/gha-indie-worker-cli"
+[package]
+name = "gha-indie-worker-cli"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "CLI for GHA Indie Worker"
+repository = "https://github.com/gha-indie-worker/gha-indie-worker-cli"
 
-    [[bin]]
-    name = "ghaiw"
-    path = "src/main.rs"
+[[bin]]
+name = "ghaiw"
+path = "src/main.rs"
 
-    [dependencies]
-    serde = { version = "1", features = ["derive"] }
-    serde_json = "1"
-    thiserror = "2"
-    toml = "0.8"
-    flags2env = { git = "https://github.com/flags-2-env/flags-2-env.git", rev = "377bff1a4e7424eb98377997a232ddc0fc700f59" }
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+toml = "0.8"
+flags2env = { git = "https://github.com/flags-2-env/flags-2-env.git", rev = "333c2ace93c362d274171ab0e0edf613d96a8e59" }
+ores-clis-core = { git = "https://github.com/ORESoftware/ores-clis-core.git", rev = "2ea696bd8dd066483d29c37af9e34036cbae82f9" }
 
 [lints.rust]
 unsafe_code = "forbid"
-
-
