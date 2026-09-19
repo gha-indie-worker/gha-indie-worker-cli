@@ -60,6 +60,27 @@ fn ensure_tunnel(name: &str) -> Result<String, CliError> {
     }
 }
 
+/// The tunnel's UUID.
+///
+/// `cloudflared tunnel create` writes its credentials to `<uuid>.json`, never
+/// `<name>.json`, so the config has to name the file by id or the tunnel
+/// refuses to run with "credentials file doesn't exist".
+fn tunnel_id(name: &str) -> Result<String, CliError> {
+    let listing = proc::capture("cloudflared", &["tunnel", "list", "--output", "json"])?;
+    let tunnels: serde_json::Value = serde_json::from_str(&listing)
+        .map_err(|error| CliError::Command(format!("cannot read the tunnel list: {error}")))?;
+    tunnels
+        .as_array()
+        .and_then(|tunnels| {
+            tunnels
+                .iter()
+                .find(|tunnel| tunnel.get("name").and_then(serde_json::Value::as_str) == Some(name))
+        })
+        .and_then(|tunnel| tunnel.get("id").and_then(serde_json::Value::as_str))
+        .map(str::to_string)
+        .ok_or_else(|| CliError::Command(format!("no tunnel named {name} in the account")))
+}
+
 pub fn init(config: &Config) -> Result<(), CliError> {
     let json = config.json;
     let name = config.tunnel_name.as_str();
@@ -78,6 +99,14 @@ pub fn init(config: &Config) -> Result<(), CliError> {
     // behave identically.
     let env = worker_env::load(&worker_env::default_path())?;
     let service = env.api_base();
+    let id = tunnel_id(name)?;
+    let credentials = cloudflared_home().join(format!("{id}.json"));
+    if !credentials.is_file() {
+        return Err(CliError::Config(format!(
+            "tunnel {name} has no credentials file at {}. Re-run `cloudflared tunnel create {name}` on this machine.",
+            credentials.display()
+        )));
+    }
     let config_path = cloudflared_home().join("config.yml");
     let config = format!(
         "# Written by giw tunnel init.\n\
@@ -91,7 +120,7 @@ pub fn init(config: &Config) -> Result<(), CliError> {
          \x20   path: ^/webhooks/github$\n\
          \x20   service: {service}\n\
          \x20 - service: http_status:404\n",
-        cloudflared_home().join(format!("{name}.json")).display()
+        credentials.display()
     );
     std::fs::write(&config_path, config).map_err(|error| {
         CliError::Command(format!("cannot write {}: {error}", config_path.display()))
