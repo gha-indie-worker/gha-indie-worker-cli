@@ -14,11 +14,13 @@ url = "https://github.com/gha-indie-worker/gha-indie-worker-cli"
 "oresoftware/ores-clis-core" = "^0.1.0"
 
 [build]
-command = "cargo build --release --locked --bin giw"
-outputs = ["target/release/giw"]
+command = "cargo build --release --locked --bin giw --bin ghaiw"
+outputs = ["target/release/giw", "target/release/ghaiw"]
 
 [bin]
 giw = "target/release/giw"
+# Compatibility alias for the binary's previous name.
+ghaiw = "target/release/ghaiw"
 
 [install]
 adapter = "none"
@@ -27,7 +29,7 @@ dir = ".vendor/.zed"
 [publish]
 include_readme = true
 tag_format = "v{version}"
-smoke_test = "test -x \"$ZED_PKG_TEST_TARGET/target/release/giw\" && \"$ZED_PKG_TEST_TARGET/target/release/giw\" --help >/dev/null"
+smoke_test = "for bin in giw ghaiw; do test -x \"$ZED_PKG_TEST_TARGET/target/release/$bin\" && \"$ZED_PKG_TEST_TARGET/target/release/$bin\" --help >/dev/null || exit 1; done"
 exclude = [".env", ".env.*", ".direnv/**", ".zed/**", ".zed-pack/**", ".vendor/.zed/**", "target/**", "tmp/**", "**/*.log", ".DS_Store"]
 
 [scripts]

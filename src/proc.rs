@@ -34,6 +34,45 @@ where
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+/// Run a tool with `input` on its stdin and capture stdout.
+///
+/// This is how a secret reaches a subprocess: not argv, which any process on
+/// the host can read, and not a file, which has a path, permissions and a
+/// lifetime to get wrong.
+pub fn capture_with_stdin<S>(program: &str, args: &[S], input: &[u8]) -> Result<String, CliError>
+where
+    S: AsRef<OsStr>,
+{
+    use std::io::Write;
+
+    let mut child = Command::new(program)
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| CliError::Command(format!("cannot run {program}: {error}")))?;
+    // Dropping the handle closes the pipe, which is what lets the child see
+    // end of input and finish.
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin
+            .write_all(input)
+            .map_err(|error| CliError::Command(format!("cannot write to {program}: {error}")))?;
+    }
+    let output = child
+        .wait_with_output()
+        .map_err(|error| CliError::Command(format!("cannot wait for {program}: {error}")))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(CliError::Command(format!(
+            "{program} failed ({}): {}",
+            output.status,
+            stderr.trim()
+        )));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
 /// Run a tool in the foreground, letting it own the terminal.
 pub fn inherit<S>(program: &str, args: &[S], env: &[(String, String)]) -> Result<(), CliError>
 where
@@ -111,6 +150,23 @@ mod tests {
     fn capture_returns_trimmed_stdout() {
         let output = capture("echo", &["hello"]).expect("echo runs");
         assert_eq!(output, "hello");
+    }
+
+    #[test]
+    fn stdin_input_reaches_the_child_and_nothing_else_does() {
+        let echoed =
+            capture_with_stdin("cat", &[] as &[&str], b"secret-on-stdin").expect("cat runs");
+        assert_eq!(echoed, "secret-on-stdin");
+        // A failing child is still reported, and its message never includes
+        // what was written to it.
+        let error = capture_with_stdin(
+            "sh",
+            &["-c", "cat >/dev/null; echo nope >&2; exit 4"],
+            b"secret-on-stdin",
+        )
+        .expect_err("must fail");
+        assert!(error.to_string().contains("nope"));
+        assert!(!error.to_string().contains("secret-on-stdin"));
     }
 
     #[test]
