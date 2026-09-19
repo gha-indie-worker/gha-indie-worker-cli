@@ -73,7 +73,10 @@ pub fn run(config: &Config) -> Result<(), CliError> {
     let request = serde_json::json!({
         "jobKind": "run-profile",
         "repoUrl": format!("https://github.com/{repo}"),
-        "gitRef": head_sha,
+        // The pin travels in its own field. A branch name would be re-resolved
+        // when the job runs, so the pull request could be verified at a commit
+        // other than the one inspected above.
+        "commitSha": head_sha,
         "profile": profile,
     })
     .to_string();
