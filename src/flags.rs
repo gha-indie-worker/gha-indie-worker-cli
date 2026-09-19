@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use crate::args::Command;
-use crate::env_map::{EnvMap, merge_env};
+use crate::env_map::{merge_env, EnvMap};
 use crate::error::CliError;
 use flags2env::BundledFlags2Env;
 
@@ -35,6 +35,11 @@ pub fn parse_cli_flags(argv: &[String], config_path: &Path) -> Result<(Command, 
         "health" => Command::Health,
         "status" => Command::Status,
         "indiebuild-validate" => Command::IndieBuildValidate,
+        "worker-up" => Command::WorkerUp,
+        "tunnel-init" => Command::TunnelInit,
+        "tunnel-up" => Command::TunnelUp,
+        "webhook-install" => Command::WebhookInstall,
+        "verify" => Command::Verify,
         other => return Err(CliError::Usage(format!("unknown command {other}"))),
     };
     Ok((command, parsed.provided_flags.into_iter().collect()))
@@ -95,21 +100,32 @@ mod tests {
     fn process_environment_beats_schema_defaults() {
         let (_, env) = apply_cli_flags_from(
             vec!["cli".into(), "health".into()],
-            EnvMap::from([("GHA_INDIE_WORKER_API_BASE".into(), "https://env.example".into())]),
+            EnvMap::from([(
+                "GHA_INDIE_WORKER_API_BASE".into(),
+                "https://env.example".into(),
+            )]),
             &config_path(),
         )
         .expect("valid flags");
-        assert_eq!(value(&env, "GHA_INDIE_WORKER_API_BASE"), Some("https://env.example"));
+        assert_eq!(
+            value(&env, "GHA_INDIE_WORKER_API_BASE"),
+            Some("https://env.example")
+        );
     }
 
     #[test]
     fn parse_failure_does_not_mutate_process_environment() {
         let before = std::env::var_os("ENV_MAP_PROBE");
         assert!(apply_cli_flags_from(
-            vec!["cli".into(), "health".into(), "--this-flag-is-not-declared".into()],
+            vec![
+                "cli".into(),
+                "health".into(),
+                "--this-flag-is-not-declared".into()
+            ],
             EnvMap::from([("ENV_MAP_PROBE".into(), "keep".into())]),
             &config_path(),
-        ).is_err());
+        )
+        .is_err());
         assert_eq!(std::env::var_os("ENV_MAP_PROBE"), before);
     }
 }

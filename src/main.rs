@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use gha_indie_worker_cli::{args, commands, config, error::CliError, flags, runtime};
-use ores_clis_core::{EnvironmentHints, TerminalState, parse_shared_argv};
+use ores_clis_core::{parse_shared_argv, EnvironmentHints, TerminalState};
 
 fn main() {
     if let Err(err) = run() {
@@ -35,8 +35,10 @@ fn run() -> Result<(), CliError> {
         return runtime::emit_human(args::help_text());
     }
 
+    // Read this before `shared.passthrough` is moved out below.
+    let output_was_explicit = shared.output_was_explicit();
     let mut consumer_argv = Vec::with_capacity(shared.passthrough.len() + 1);
-    consumer_argv.push(argv.first().cloned().unwrap_or_else(|| "ghaiw".into()));
+    consumer_argv.push(argv.first().cloned().unwrap_or_else(|| "giw".into()));
     consumer_argv.extend(shared.passthrough);
     let (command, env) = flags::apply_cli_flags_from(
         consumer_argv,
@@ -44,7 +46,7 @@ fn run() -> Result<(), CliError> {
         Path::new(".cli-flags.toml"),
     )?;
     let mut cfg = config::Config::from_env_map(&env)?;
-    if shared.output_was_explicit() || !legacy_output_explicit {
+    if output_was_explicit || !legacy_output_explicit {
         cfg.json = resolved.json();
     }
     commands::dispatch(&cfg, command)

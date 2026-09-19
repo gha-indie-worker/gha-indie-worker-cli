@@ -7,6 +7,12 @@ description = "CLI for GHA Indie Worker"
 repository = "https://github.com/gha-indie-worker/gha-indie-worker-cli"
 
 [[bin]]
+name = "giw"
+path = "src/main.rs"
+
+# The previous name of this binary. Kept so scripts and muscle memory that say
+# `ghaiw` keep working across the rename; both are the same program.
+[[bin]]
 name = "ghaiw"
 path = "src/main.rs"
 
