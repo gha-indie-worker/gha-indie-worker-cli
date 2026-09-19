@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! `ghaiw tunnel` — the public ingress for GitHub's webhook deliveries.
+//! `giw tunnel` — the public ingress for GitHub's webhook deliveries.
 //!
 //! A *named* tunnel, not a quick tunnel: quick tunnels get a new random
 //! hostname every run, which would mean re-registering the webhook on every
@@ -80,7 +80,7 @@ pub fn init(config: &Config) -> Result<(), CliError> {
     let service = env.api_base();
     let config_path = cloudflared_home().join("config.yml");
     let config = format!(
-        "# Written by ghaiw tunnel init.\n\
+        "# Written by giw tunnel init.\n\
          tunnel: {name}\n\
          credentials-file: {}\n\
          \n\
@@ -105,7 +105,7 @@ pub fn init(config: &Config) -> Result<(), CliError> {
     })
     .to_string();
     let human = format!(
-        "{created}\n{routed}\nwrote {}\n\nnext:\n  ghaiw tunnel-up --detach\n  ghaiw webhook-install --repo=OWNER/NAME --webhook-url=https://{hostname}/webhooks/github",
+        "{created}\n{routed}\nwrote {}\n\nnext:\n  giw tunnel-up --detach\n  giw webhook-install --repo=OWNER/NAME --webhook-url=https://{hostname}/webhooks/github",
         config_path.display()
     );
     runtime::emit(json, human, &machine)

@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! `ghaiw webhook install` — point a repository's webhook at this worker.
+//! `giw webhook install` — point a repository's webhook at this worker.
 
 use std::path::PathBuf;
 

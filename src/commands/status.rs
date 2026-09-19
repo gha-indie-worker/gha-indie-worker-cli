@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! `ghaiw status` — readiness, and whether the worker can actually build.
+//! `giw status` — readiness, and whether the worker can actually build.
 
 use crate::config::Config;
 use crate::error::CliError;

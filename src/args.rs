@@ -103,7 +103,7 @@ where
 }
 
 pub fn help_text() -> &'static str {
-    "ghaiw — GHA Indie Worker CLI\n\
+    "giw — GHA Indie Worker CLI\n\
 \n\
 Run pull request CI on this machine instead of GitHub-hosted runners.\n\
 \n\
@@ -126,9 +126,9 @@ Flags:\n\
 \n\
 Setup, once:\n\
   cloudflared tunnel login\n\
-  ghaiw tunnel-init --hostname=ci.example.com\n\
-  ghaiw worker-up --detach && ghaiw tunnel-up --detach\n\
-  ghaiw webhook-install --repo=OWNER/NAME\n\
+  giw tunnel-init --hostname=ci.example.com\n\
+  giw worker-up --detach && giw tunnel-up --detach\n\
+  giw webhook-install --repo=OWNER/NAME\n\
 \n\
 Configuration is read from ~/.config/gha-indie-worker/worker.env,\n\
 or GHAIW_ENV_FILE.\n"

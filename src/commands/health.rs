@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! `ghaiw health` — is the worker up?
+//! `giw health` — is the worker up?
 
 use crate::config::Config;
 use crate::error::CliError;

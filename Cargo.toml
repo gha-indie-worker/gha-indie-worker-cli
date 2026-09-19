@@ -7,7 +7,7 @@ description = "CLI for GHA Indie Worker"
 repository = "https://github.com/gha-indie-worker/gha-indie-worker-cli"
 
 [[bin]]
-name = "ghaiw"
+name = "giw"
 path = "src/main.rs"
 
 [dependencies]

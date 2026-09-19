@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! `ghaiw worker up` — start the build worker on this machine.
+//! `giw worker up` — start the build worker on this machine.
 
 use std::path::PathBuf;
 

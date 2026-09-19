@@ -38,7 +38,7 @@ fn run() -> Result<(), CliError> {
     // Read this before `shared.passthrough` is moved out below.
     let output_was_explicit = shared.output_was_explicit();
     let mut consumer_argv = Vec::with_capacity(shared.passthrough.len() + 1);
-    consumer_argv.push(argv.first().cloned().unwrap_or_else(|| "ghaiw".into()));
+    consumer_argv.push(argv.first().cloned().unwrap_or_else(|| "giw".into()));
     consumer_argv.extend(shared.passthrough);
     let (command, env) = flags::apply_cli_flags_from(
         consumer_argv,

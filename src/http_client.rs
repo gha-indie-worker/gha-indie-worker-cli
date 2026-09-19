@@ -103,7 +103,7 @@ pub fn request(
     let authority = authority_of(base)?;
     let mut stream = TcpStream::connect(&authority).map_err(|error| {
         CliError::Command(format!(
-            "cannot reach the worker at {authority}: {error}. Is it running? Try: ghaiw worker up"
+            "cannot reach the worker at {authority}: {error}. Is it running? Try: giw worker up"
         ))
     })?;
     stream.set_read_timeout(Some(TIMEOUT)).ok();

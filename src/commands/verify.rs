@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! `ghaiw verify OWNER/REPO#N` — verify one open pull request now.
+//! `giw verify OWNER/REPO#N` — verify one open pull request now.
 //!
 //! The same path a webhook delivery takes, driven by hand: resolve the head
 //! commit, submit it, wait, and let the worker report the verdict to GitHub.
@@ -135,7 +135,7 @@ pub fn run(config: &Config) -> Result<(), CliError> {
         println!("{repo}#{pull_request} verified; the commit status is reported on GitHub");
     } else {
         println!("{repo}#{pull_request} did not pass ({status})");
-        println!("  logs: ghaiw status, or {base}/builds/{job_id}/logs");
+        println!("  logs: giw status, or {base}/builds/{job_id}/logs");
     }
     if succeeded {
         Ok(())
