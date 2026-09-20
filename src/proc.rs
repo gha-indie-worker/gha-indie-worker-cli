@@ -13,7 +13,34 @@ use std::process::{Command, Stdio};
 
 use crate::error::CliError;
 
+/// Long-running worker/tunnel children do not inherit the caller's whole shell.
+///
+/// These are runtime necessities, not credential channels. Explicit variables
+/// supplied by the caller are added after this allowlist and therefore win.
+const LAUNCH_AMBIENT_ALLOWLIST: [&str; 6] =
+    ["PATH", "HOME", "TMPDIR", "TMP", "TEMP", "XDG_RUNTIME_DIR"];
+
+fn isolated_launch_command(program: &str, env: &[(String, String)]) -> Command {
+    let mut command = Command::new(program);
+    command.env_clear();
+    for key in LAUNCH_AMBIENT_ALLOWLIST {
+        if let Some(value) = std::env::var_os(key) {
+            command.env(key, value);
+        }
+    }
+    command.envs(
+        env.iter()
+            .map(|(key, value)| (key.as_str(), value.as_str())),
+    );
+    command
+}
+
 /// Run a tool and capture its stdout, failing on a non-zero exit.
+///
+/// Short-lived operator tools deliberately keep their ambient environment:
+/// `gh` may use `GH_TOKEN` and both `gh` and `cloudflared` may use normal
+/// per-user authentication/configuration. The stricter boundary below applies
+/// to long-running worker/tunnel children.
 pub fn capture<S>(program: &str, args: &[S]) -> Result<String, CliError>
 where
     S: AsRef<OsStr>,
@@ -73,14 +100,16 @@ where
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-/// Run a tool in the foreground, letting it own the terminal.
+/// Run a long-lived tool in the foreground, letting it own the terminal.
+///
+/// The child starts from an empty environment, receives only a tiny runtime
+/// allowlist, then receives the explicitly admitted service variables.
 pub fn inherit<S>(program: &str, args: &[S], env: &[(String, String)]) -> Result<(), CliError>
 where
     S: AsRef<OsStr>,
 {
-    let status = Command::new(program)
+    let status = isolated_launch_command(program, env)
         .args(args)
-        .envs(env.iter().map(|(key, value)| (key.clone(), value.clone())))
         .status()
         .map_err(|error| CliError::Command(format!("cannot run {program}: {error}")))?;
     if !status.success() {
@@ -92,7 +121,8 @@ where
 /// Start a long-running process in the background with its output in a log.
 ///
 /// The child is reparented when this CLI exits; it is not a supervised daemon,
-/// which is why the log path is reported rather than hidden.
+/// which is why the log path is reported rather than hidden. Like `inherit`,
+/// it does not receive unrelated credentials from the caller's shell.
 pub fn background<S>(
     program: &str,
     args: &[S],
@@ -119,9 +149,8 @@ where
     let errors = log
         .try_clone()
         .map_err(|error| CliError::Command(format!("cannot duplicate log handle: {error}")))?;
-    let child = Command::new(program)
+    let child = isolated_launch_command(program, env)
         .args(args)
-        .envs(env.iter().map(|(key, value)| (key.clone(), value.clone())))
         .stdin(Stdio::null())
         .stdout(Stdio::from(log))
         .stderr(Stdio::from(errors))
@@ -145,6 +174,38 @@ pub fn available(program: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeSet;
+
+    #[test]
+    fn long_running_children_receive_only_allowlisted_or_explicit_environment() {
+        let command = isolated_launch_command(
+            "sh",
+            &[
+                ("EXPLICIT_SETTING".to_string(), "yes".to_string()),
+                ("PATH".to_string(), "/explicit/path".to_string()),
+            ],
+        );
+        let names: BTreeSet<String> = command
+            .get_envs()
+            .map(|(key, _)| key.to_string_lossy().into_owned())
+            .collect();
+
+        assert!(names.contains("EXPLICIT_SETTING"));
+        for name in &names {
+            assert!(
+                name == "EXPLICIT_SETTING"
+                    || LAUNCH_AMBIENT_ALLOWLIST.contains(&name.as_str()),
+                "unexpected inherited environment variable {name}"
+            );
+        }
+
+        let path = command
+            .get_envs()
+            .find(|(key, _)| *key == OsStr::new("PATH"))
+            .and_then(|(_, value)| value)
+            .map(|value| value.to_string_lossy().into_owned());
+        assert_eq!(path.as_deref(), Some("/explicit/path"));
+    }
 
     #[test]
     fn capture_returns_trimmed_stdout() {
