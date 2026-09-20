@@ -84,7 +84,92 @@ pub fn default_path() -> PathBuf {
     home.join(DEFAULT_RELATIVE_PATH)
 }
 
+#[cfg(unix)]
+fn unix_boundary_problem(
+    file_mode: u32,
+    file_uid: u32,
+    parent_mode: u32,
+    parent_uid: u32,
+) -> Option<&'static str> {
+    if file_mode & 0o077 != 0 {
+        return Some("must not be readable, writable, or executable by group/other");
+    }
+    if parent_mode & 0o022 != 0 {
+        return Some("parent directory must not be writable by group/other");
+    }
+    if file_uid != parent_uid {
+        return Some("owner does not match the containing directory owner");
+    }
+    None
+}
+
+fn validate_boundary(path: &Path) -> Result<(), CliError> {
+    let metadata = std::fs::symlink_metadata(path).map_err(|error| {
+        CliError::Config(format!(
+            "cannot inspect worker env file {}: {error}",
+            path.display()
+        ))
+    })?;
+
+    if metadata.file_type().is_symlink() {
+        return Err(CliError::Config(format!(
+            "worker env file {} must not be a symlink",
+            path.display()
+        )));
+    }
+    if !metadata.file_type().is_file() {
+        return Err(CliError::Config(format!(
+            "worker env path {} is not a regular file",
+            path.display()
+        )));
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+
+        let parent = path.parent().ok_or_else(|| {
+            CliError::Config(format!(
+                "worker env file {} has no containing directory",
+                path.display()
+            ))
+        })?;
+        let parent_metadata = std::fs::symlink_metadata(parent).map_err(|error| {
+            CliError::Config(format!(
+                "cannot inspect worker env directory {}: {error}",
+                parent.display()
+            ))
+        })?;
+        if parent_metadata.file_type().is_symlink() {
+            return Err(CliError::Config(format!(
+                "worker env directory {} must not be a symlink",
+                parent.display()
+            )));
+        }
+        if !parent_metadata.file_type().is_dir() {
+            return Err(CliError::Config(format!(
+                "worker env parent {} is not a directory",
+                parent.display()
+            )));
+        }
+        if let Some(problem) = unix_boundary_problem(
+            metadata.mode(),
+            metadata.uid(),
+            parent_metadata.mode(),
+            parent_metadata.uid(),
+        ) {
+            return Err(CliError::Config(format!(
+                "unsafe worker env file {}: {problem}",
+                path.display()
+            )));
+        }
+    }
+
+    Ok(())
+}
+
 pub fn load(path: &Path) -> Result<WorkerEnv, CliError> {
+    validate_boundary(path)?;
     let contents = std::fs::read_to_string(path).map_err(|error| {
         CliError::Config(format!(
             "cannot read worker env file {}: {error}",
@@ -149,5 +234,55 @@ mod tests {
             error.to_string().contains("BUILD_SERVER_AUTH_SECRET"),
             "{error}"
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unix_boundary_rejects_open_permissions_and_owner_mismatch() {
+        assert_eq!(
+            unix_boundary_problem(0o100644, 501, 0o40700, 501),
+            Some("must not be readable, writable, or executable by group/other")
+        );
+        assert_eq!(
+            unix_boundary_problem(0o100600, 501, 0o40777, 501),
+            Some("parent directory must not be writable by group/other")
+        );
+        assert_eq!(
+            unix_boundary_problem(0o100600, 501, 0o40700, 0),
+            Some("owner does not match the containing directory owner")
+        );
+        assert_eq!(unix_boundary_problem(0o100600, 501, 0o40700, 501), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn load_rejects_a_symlink_before_reading_it() {
+        use std::os::unix::fs::{symlink, PermissionsExt};
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!(
+            "giw-env-symlink-{}-{nonce}",
+            std::process::id()
+        ));
+        std::fs::create_dir(&dir).expect("scratch dir");
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))
+            .expect("secure scratch permissions");
+        let real = dir.join("real.env");
+        let link = dir.join("worker.env");
+        std::fs::write(&real, "PORT=18095\n").expect("write target");
+        std::fs::set_permissions(&real, std::fs::Permissions::from_mode(0o600))
+            .expect("secure file permissions");
+        symlink(&real, &link).expect("create symlink");
+
+        let error = load(&link).expect_err("symlink must be refused");
+        assert!(error.to_string().contains("must not be a symlink"), "{error}");
+
+        let _ = std::fs::remove_file(link);
+        let _ = std::fs::remove_file(real);
+        let _ = std::fs::remove_dir(dir);
     }
 }
