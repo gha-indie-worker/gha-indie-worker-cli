@@ -6,6 +6,17 @@ use gha_indie_worker_cli::{args, commands, config, error::CliError, flags, runti
 use ores_clis_core::{EnvironmentHints, TerminalState, parse_shared_argv};
 
 fn main() {
+    if ores_clis_core::self_update::self_update_requested() {
+        ores_clis_core::self_update::run_self_update_cli(
+            ores_clis_core::self_update::SelfUpdateConfig::new(
+                "gha-indie-worker",
+                "gha-indie-worker-cli",
+                "ghaiw",
+                env!("CARGO_PKG_VERSION"),
+            ),
+        );
+    }
+
     if let Err(err) = run() {
         runtime::emit_error(&err);
         std::process::exit(err.exit_code());
