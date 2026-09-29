@@ -17,6 +17,14 @@ fn main() {
         );
     }
 
+    if std::env::args()
+        .nth(1)
+        .is_some_and(|argument| matches!(argument.as_str(), "--version" | "-V"))
+    {
+        println!("ghaiw {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
     if let Err(err) = run() {
         runtime::emit_error(&err);
         std::process::exit(err.exit_code());
