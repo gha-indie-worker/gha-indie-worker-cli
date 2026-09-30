@@ -5,17 +5,33 @@ import gleam/option.{type Option, None, Some}
 pub type CliEnvValues {
   CliEnvValues(
     api_base: String,
+    detach: String,
     env_map_probe: Option(String),
+    hostname: Option(String),
+    indiebuild_config: String,
     json: String,
+    pr: Option(String),
+    profile: String,
+    repo: Option(String),
+    tunnel_name: String,
+    webhook_url: Option(String),
   )
 }
 
 /// Pure: resolve values from an explicit lookup.
 pub fn load_from(lookup: fn(String) -> Option(String)) -> CliEnvValues {
   CliEnvValues(
-    api_base: nonempty_or(lookup("GHA_INDIE_WORKER_API_BASE"), "http://127.0.0.1:8080"),
+    api_base: nonempty_or(lookup("GHA_INDIE_WORKER_API_BASE"), "http://127.0.0.1:18095"),
+    detach: nonempty_or(lookup("GHA_INDIE_WORKER_DETACH"), "false"),
     env_map_probe: nonempty(lookup("ENV_MAP_PROBE")),
+    hostname: nonempty(lookup("GHA_INDIE_WORKER_HOSTNAME")),
+    indiebuild_config: nonempty_or(lookup("INDIEBUILD_CONFIG"), ".indiebuild.toml"),
     json: nonempty_or(lookup("GHA_INDIE_WORKER_JSON"), "false"),
+    pr: nonempty(lookup("GHA_INDIE_WORKER_PR")),
+    profile: nonempty_or(lookup("GHA_INDIE_WORKER_PROFILE"), "rust-verify"),
+    repo: nonempty(lookup("GHA_INDIE_WORKER_REPO")),
+    tunnel_name: nonempty_or(lookup("GHA_INDIE_WORKER_TUNNEL_NAME"), "ci-worker"),
+    webhook_url: nonempty(lookup("GHA_INDIE_WORKER_WEBHOOK_URL")),
   )
 }
 

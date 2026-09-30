@@ -2,19 +2,53 @@
 #![allow(dead_code)]
 
 /// Runtime values read from a lookup of env keys.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct CliEnvValues {
     pub api_base: String,
+    pub detach: bool,
     pub env_map_probe: Option<String>,
+    pub hostname: Option<String>,
+    pub indiebuild_config: String,
     pub json: bool,
+    pub pr: Option<String>,
+    pub profile: String,
+    pub repo: Option<String>,
+    pub tunnel_name: String,
+    pub webhook_url: Option<String>,
+}
+
+impl std::fmt::Debug for CliEnvValues {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CliEnvValues")
+            .field("api_base", &self.api_base)
+            .field("detach", &self.detach)
+            .field("env_map_probe", &self.env_map_probe)
+            .field("hostname", &self.hostname)
+            .field("indiebuild_config", &self.indiebuild_config)
+            .field("json", &self.json)
+            .field("pr", &self.pr)
+            .field("profile", &self.profile)
+            .field("repo", &self.repo)
+            .field("tunnel_name", &self.tunnel_name)
+            .field("webhook_url", &self.webhook_url)
+            .finish()
+    }
 }
 
 /// Pure: resolve values from an explicit lookup.
 pub fn load_from(lookup: impl Fn(&str) -> Option<String>) -> CliEnvValues {
     CliEnvValues {
-        api_base: lookup("GHA_INDIE_WORKER_API_BASE").filter(|value| !value.is_empty()).unwrap_or_else(|| "http://127.0.0.1:8080".to_string()),
+        api_base: lookup("GHA_INDIE_WORKER_API_BASE").filter(|value| !value.is_empty()).unwrap_or_else(|| "http://127.0.0.1:18095".to_string()),
+        detach: parse_bool(lookup("GHA_INDIE_WORKER_DETACH"), false),
         env_map_probe: lookup("ENV_MAP_PROBE").filter(|value| !value.is_empty()),
+        hostname: lookup("GHA_INDIE_WORKER_HOSTNAME").filter(|value| !value.is_empty()),
+        indiebuild_config: lookup("INDIEBUILD_CONFIG").filter(|value| !value.is_empty()).unwrap_or_else(|| ".indiebuild.toml".to_string()),
         json: parse_bool(lookup("GHA_INDIE_WORKER_JSON"), false),
+        pr: lookup("GHA_INDIE_WORKER_PR").filter(|value| !value.is_empty()),
+        profile: lookup("GHA_INDIE_WORKER_PROFILE").filter(|value| !value.is_empty()).unwrap_or_else(|| "rust-verify".to_string()),
+        repo: lookup("GHA_INDIE_WORKER_REPO").filter(|value| !value.is_empty()),
+        tunnel_name: lookup("GHA_INDIE_WORKER_TUNNEL_NAME").filter(|value| !value.is_empty()).unwrap_or_else(|| "ci-worker".to_string()),
+        webhook_url: lookup("GHA_INDIE_WORKER_WEBHOOK_URL").filter(|value| !value.is_empty()),
     }
 }
 
@@ -122,11 +156,7 @@ fn parse_dotenv(text: &str) -> std::collections::BTreeMap<String, String> {
             continue;
         };
         let key = key.trim();
-        if key.is_empty() {
-            continue;
-        }
-        let first = key.chars().next().unwrap_or('\0');
-        if !(first.is_ascii_alphabetic() || first == '_') {
+        if !is_dotenv_key(key) {
             continue;
         }
         out.insert(key.to_string(), unquote(value));
@@ -134,23 +164,56 @@ fn parse_dotenv(text: &str) -> std::collections::BTreeMap<String, String> {
     out
 }
 
-fn dotenv_enabled() -> bool {
-    match std::env::var("FLAGS2ENV_DOTENV") {
-        Ok(value) if matches!(value.trim(), "0" | "false" | "FALSE" | "no" | "NO") => false,
-        _ => true,
+fn is_dotenv_key(key: &str) -> bool {
+    let mut chars = key.chars();
+    match chars.next() {
+        Some(first) if first.is_ascii_alphabetic() || first == '_' => {
+            chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+        }
+        _ => false,
     }
+}
+
+fn is_safe_dotenv_path(path: &str) -> bool {
+    if path.is_empty() || path.contains('\0') {
+        return false;
+    }
+    let parsed = std::path::Path::new(path);
+    if parsed.is_absolute() {
+        return false;
+    }
+    if parsed
+        .components()
+        .any(|component| matches!(component, std::path::Component::ParentDir))
+    {
+        return false;
+    }
+    matches!(
+        parsed.file_name().and_then(|name| name.to_str()),
+        Some(name) if name == ".env" || name.starts_with(".env.")
+    )
+}
+
+fn dotenv_enabled() -> bool {
+    !matches!(
+        std::env::var("FLAGS2ENV_DOTENV"),
+        Ok(value) if matches!(value.trim(), "0" | "false" | "FALSE" | "no" | "NO")
+    )
 }
 
 fn load_dotenv_files(files: &[&str]) -> std::collections::BTreeMap<String, String> {
     if !dotenv_enabled() {
         return std::collections::BTreeMap::new();
     }
-    files.iter().fold(std::collections::BTreeMap::new(), |mut acc, path| {
-        if let Ok(text) = std::fs::read_to_string(path) {
-            acc.extend(parse_dotenv(&text));
-        }
-        acc
-    })
+    files.iter().filter(|path| is_safe_dotenv_path(path)).fold(
+        std::collections::BTreeMap::new(),
+        |mut acc, path| {
+            if let Ok(text) = std::fs::read_to_string(path) {
+                acc.extend(parse_dotenv(&text));
+            }
+            acc
+        },
+    )
 }
 
 fn shell_env() -> std::collections::BTreeMap<String, String> {
@@ -164,22 +227,230 @@ pub fn load_env_map(
     flags: &std::collections::BTreeMap<String, String>,
 ) -> Result<std::collections::BTreeMap<String, String>, MissingEnv> {
     let mut out = std::collections::BTreeMap::new();
-    let api_base = pick(&["GHA_INDIE_WORKER_API_BASE"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, Some("http://127.0.0.1:8080"));
+    let api_base = pick(&["GHA_INDIE_WORKER_API_BASE"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, Some("http://127.0.0.1:18095"));
     if let Some(value) = api_base {
         out.insert("GHA_INDIE_WORKER_API_BASE".to_string(), value);
+    }
+    let detach = pick(&["GHA_INDIE_WORKER_DETACH"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, Some("false"));
+    if let Some(value) = detach {
+        out.insert("GHA_INDIE_WORKER_DETACH".to_string(), value);
     }
     let env_map_probe = pick(&["ENV_MAP_PROBE"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, None);
     if let Some(value) = env_map_probe {
         out.insert("ENV_MAP_PROBE".to_string(), value);
     }
+    let hostname = pick(&["GHA_INDIE_WORKER_HOSTNAME"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, None);
+    if let Some(value) = hostname {
+        out.insert("GHA_INDIE_WORKER_HOSTNAME".to_string(), value);
+    }
+    let indiebuild_config = pick(&["INDIEBUILD_CONFIG"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, Some(".indiebuild.toml"));
+    if let Some(value) = indiebuild_config {
+        out.insert("INDIEBUILD_CONFIG".to_string(), value);
+    }
     let json = pick(&["GHA_INDIE_WORKER_JSON"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, Some("false"));
     if let Some(value) = json {
         out.insert("GHA_INDIE_WORKER_JSON".to_string(), value);
     }
-    Ok(out)
+    let pr = pick(&["GHA_INDIE_WORKER_PR"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, None);
+    if let Some(value) = pr {
+        out.insert("GHA_INDIE_WORKER_PR".to_string(), value);
+    }
+    let profile = pick(&["GHA_INDIE_WORKER_PROFILE"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, Some("rust-verify"));
+    if let Some(value) = profile {
+        out.insert("GHA_INDIE_WORKER_PROFILE".to_string(), value);
+    }
+    let repo = pick(&["GHA_INDIE_WORKER_REPO"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, None);
+    if let Some(value) = repo {
+        out.insert("GHA_INDIE_WORKER_REPO".to_string(), value);
+    }
+    let tunnel_name = pick(&["GHA_INDIE_WORKER_TUNNEL_NAME"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, Some("ci-worker"));
+    if let Some(value) = tunnel_name {
+        out.insert("GHA_INDIE_WORKER_TUNNEL_NAME".to_string(), value);
+    }
+    let webhook_url = pick(&["GHA_INDIE_WORKER_WEBHOOK_URL"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, None);
+    if let Some(value) = webhook_url {
+        out.insert("GHA_INDIE_WORKER_WEBHOOK_URL".to_string(), value);
+    }
+    match check_os_env(&out) {
+        Ok(()) => Ok(out),
+        Err(errors) => Err(contract_error_to_missing(&errors[0])),
+    }
 }
 
 /// Effectful overlay: `.env` files then the process environment, ranked per key.
 pub fn load_env_map_from_os() -> Result<std::collections::BTreeMap<String, String>, MissingEnv> {
-    load_env_map(&shell_env(), &load_dotenv_files(&[".env"]), &std::collections::BTreeMap::new())
+    load_env_map(&shell_env(), &load_dotenv_files(&[]), &std::collections::BTreeMap::new())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContractError {
+    pub path: String,
+    pub message: String,
+}
+
+impl std::fmt::Display for ContractError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.path, self.message)
+    }
+}
+
+/// Validate the resolved env map against the generated JSON Schema rules.
+/// Call this at runtime (after overlay), not only at compile time.
+pub fn check_os_env(
+    env: &std::collections::BTreeMap<String, String>,
+) -> Result<(), Vec<ContractError>> {
+    let mut errors = Vec::new();
+    if let Some(raw) = env.get("GHA_INDIE_WORKER_API_BASE").map(|value| value.trim()).filter(|value| !value.is_empty()) {
+        if let Some(message) = contract_check_string(raw) {
+            errors.push(ContractError { path: "GHA_INDIE_WORKER_API_BASE".into(), message });
+        }
+    }
+    if let Some(raw) = env.get("GHA_INDIE_WORKER_DETACH").map(|value| value.trim()).filter(|value| !value.is_empty()) {
+        if let Some(message) = contract_check_bool(raw) {
+            errors.push(ContractError { path: "GHA_INDIE_WORKER_DETACH".into(), message });
+        }
+    }
+    if let Some(raw) = env.get("ENV_MAP_PROBE").map(|value| value.trim()).filter(|value| !value.is_empty()) {
+        if let Some(message) = contract_check_string(raw) {
+            errors.push(ContractError { path: "ENV_MAP_PROBE".into(), message });
+        }
+    }
+    if let Some(raw) = env.get("GHA_INDIE_WORKER_HOSTNAME").map(|value| value.trim()).filter(|value| !value.is_empty()) {
+        if let Some(message) = contract_check_string(raw) {
+            errors.push(ContractError { path: "GHA_INDIE_WORKER_HOSTNAME".into(), message });
+        }
+    }
+    if let Some(raw) = env.get("INDIEBUILD_CONFIG").map(|value| value.trim()).filter(|value| !value.is_empty()) {
+        if let Some(message) = contract_check_string(raw) {
+            errors.push(ContractError { path: "INDIEBUILD_CONFIG".into(), message });
+        }
+    }
+    if let Some(raw) = env.get("GHA_INDIE_WORKER_JSON").map(|value| value.trim()).filter(|value| !value.is_empty()) {
+        if let Some(message) = contract_check_bool(raw) {
+            errors.push(ContractError { path: "GHA_INDIE_WORKER_JSON".into(), message });
+        }
+    }
+    if let Some(raw) = env.get("GHA_INDIE_WORKER_PR").map(|value| value.trim()).filter(|value| !value.is_empty()) {
+        if let Some(message) = contract_check_string(raw) {
+            errors.push(ContractError { path: "GHA_INDIE_WORKER_PR".into(), message });
+        }
+    }
+    if let Some(raw) = env.get("GHA_INDIE_WORKER_PROFILE").map(|value| value.trim()).filter(|value| !value.is_empty()) {
+        if let Some(message) = contract_check_string(raw) {
+            errors.push(ContractError { path: "GHA_INDIE_WORKER_PROFILE".into(), message });
+        }
+    }
+    if let Some(raw) = env.get("GHA_INDIE_WORKER_REPO").map(|value| value.trim()).filter(|value| !value.is_empty()) {
+        if let Some(message) = contract_check_string(raw) {
+            errors.push(ContractError { path: "GHA_INDIE_WORKER_REPO".into(), message });
+        }
+    }
+    if let Some(raw) = env.get("GHA_INDIE_WORKER_TUNNEL_NAME").map(|value| value.trim()).filter(|value| !value.is_empty()) {
+        if let Some(message) = contract_check_string(raw) {
+            errors.push(ContractError { path: "GHA_INDIE_WORKER_TUNNEL_NAME".into(), message });
+        }
+    }
+    if let Some(raw) = env.get("GHA_INDIE_WORKER_WEBHOOK_URL").map(|value| value.trim()).filter(|value| !value.is_empty()) {
+        if let Some(message) = contract_check_string(raw) {
+            errors.push(ContractError { path: "GHA_INDIE_WORKER_WEBHOOK_URL".into(), message });
+        }
+    }
+    for key in env.keys() {
+        if !KNOWN_ENV_KEYS.contains(&key.as_str()) {
+            errors.push(ContractError {
+                path: key.clone(),
+                message: "additional property not in the env contract".into(),
+            });
+        }
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+fn contract_error_to_missing(error: &ContractError) -> MissingEnv {
+    match error.path.as_str() {
+        "GHA_INDIE_WORKER_API_BASE" => MissingEnv { name: "GHA_INDIE_WORKER_API_BASE", expected_type: "string", examples: &["http://127.0.0.1:8080", "https://api.example.test"] },
+        "GHA_INDIE_WORKER_DETACH" => MissingEnv { name: "GHA_INDIE_WORKER_DETACH", expected_type: "bool", examples: &["true", "false", "1", "0"] },
+        "ENV_MAP_PROBE" => MissingEnv { name: "ENV_MAP_PROBE", expected_type: "string", examples: &["example-value"] },
+        "GHA_INDIE_WORKER_HOSTNAME" => MissingEnv { name: "GHA_INDIE_WORKER_HOSTNAME", expected_type: "string", examples: &["example-value"] },
+        "INDIEBUILD_CONFIG" => MissingEnv { name: "INDIEBUILD_CONFIG", expected_type: "string", examples: &["example-value"] },
+        "GHA_INDIE_WORKER_JSON" => MissingEnv { name: "GHA_INDIE_WORKER_JSON", expected_type: "bool", examples: &["true", "false", "1", "0"] },
+        "GHA_INDIE_WORKER_PR" => MissingEnv { name: "GHA_INDIE_WORKER_PR", expected_type: "string", examples: &["example-value"] },
+        "GHA_INDIE_WORKER_PROFILE" => MissingEnv { name: "GHA_INDIE_WORKER_PROFILE", expected_type: "string", examples: &["example-value"] },
+        "GHA_INDIE_WORKER_REPO" => MissingEnv { name: "GHA_INDIE_WORKER_REPO", expected_type: "string", examples: &["example-value"] },
+        "GHA_INDIE_WORKER_TUNNEL_NAME" => MissingEnv { name: "GHA_INDIE_WORKER_TUNNEL_NAME", expected_type: "string", examples: &["example-value"] },
+        "GHA_INDIE_WORKER_WEBHOOK_URL" => MissingEnv { name: "GHA_INDIE_WORKER_WEBHOOK_URL", expected_type: "string", examples: &["http://127.0.0.1:8080", "https://api.example.test"] },
+        _ => MissingEnv {
+            name: "ENV_CONTRACT",
+            expected_type: "json-schema-2020-12",
+            examples: &[],
+        },
+    }
+}
+
+pub fn assert_os_env(env: &std::collections::BTreeMap<String, String>) {
+    if let Err(errors) = check_os_env(env) {
+        panic!(
+            "environment contract violated: {}",
+            errors
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("; ")
+        );
+    }
+}
+
+const KNOWN_ENV_KEYS: &[&str] = &["GHA_INDIE_WORKER_API_BASE", "GHA_INDIE_WORKER_DETACH", "ENV_MAP_PROBE", "GHA_INDIE_WORKER_HOSTNAME", "INDIEBUILD_CONFIG", "GHA_INDIE_WORKER_JSON", "GHA_INDIE_WORKER_PR", "GHA_INDIE_WORKER_PROFILE", "GHA_INDIE_WORKER_REPO", "GHA_INDIE_WORKER_TUNNEL_NAME", "GHA_INDIE_WORKER_WEBHOOK_URL", ];
+
+
+fn contract_check_string(raw: &str) -> Option<String> {
+    if raw.is_empty() {
+        Some("empty string".into())
+    } else {
+        None
+    }
+}
+
+fn contract_check_bool(raw: &str) -> Option<String> {
+    match raw {
+        "0" | "1" | "true" | "false" | "TRUE" | "FALSE" | "yes" | "no" | "YES" | "NO" => None,
+        _ => Some(format!("not a bool env token: {raw}")),
+    }
+}
+
+fn contract_check_int(raw: &str) -> Option<String> {
+    raw.parse::<i64>().err().map(|err| err.to_string())
+}
+
+fn contract_check_float(raw: &str) -> Option<String> {
+    raw.parse::<f64>().err().map(|err| err.to_string())
+}
+
+fn contract_check_json(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if (trimmed.starts_with('{') && trimmed.ends_with('}'))
+        || (trimmed.starts_with('[') && trimmed.ends_with(']'))
+    {
+        None
+    } else {
+        Some("expected JSON object or array string".into())
+    }
+}
+
+pub const OS_ENV_SCHEMA_JSON: &str = "{\n  \"$id\": \"https://github.com/flags-2-env/flags-2-env-cli/generated/json-schema/service/env.os.schema.json\",\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"additionalProperties\": false,\n  \"description\": \"Resolved environment map for CliEnv after flags-2-env overlay (flags > env_shell > env_file unless reordered). Values are still strings, as the OS stores them. Validate this object at runtime with `check_os_env` or `f2e check-contract`; do not hand-edit generated sources.\",\n  \"properties\": {\n    \"ENV_MAP_PROBE\": {\n      \"description\": \"Runtime environment key ENV_MAP_PROBE.\",\n      \"examples\": [\n        \"example-value\"\n      ],\n      \"minLength\": 1,\n      \"type\": \"string\",\n      \"x-env-key\": \"ENV_MAP_PROBE\",\n      \"x-flag-type\": \"string\"\n    },\n    \"GHA_INDIE_WORKER_API_BASE\": {\n      \"description\": \"API HTTP base URL.\",\n      \"examples\": [\n        \"http://127.0.0.1:8080\",\n        \"https://api.example.test\"\n      ],\n      \"minLength\": 1,\n      \"type\": \"string\",\n      \"x-env-key\": \"GHA_INDIE_WORKER_API_BASE\",\n      \"x-flag-type\": \"string\"\n    },\n    \"GHA_INDIE_WORKER_DETACH\": {\n      \"description\": \"Run in the background instead of the foreground.\",\n      \"enum\": [\n        \"0\",\n        \"1\",\n        \"true\",\n        \"false\",\n        \"TRUE\",\n        \"FALSE\",\n        \"yes\",\n        \"no\",\n        \"YES\",\n        \"NO\"\n      ],\n      \"examples\": [\n        \"true\",\n        \"false\",\n        \"1\",\n        \"0\"\n      ],\n      \"minLength\": 1,\n      \"type\": \"string\",\n      \"x-env-key\": \"GHA_INDIE_WORKER_DETACH\",\n      \"x-flag-type\": \"bool\"\n    },\n    \"GHA_INDIE_WORKER_HOSTNAME\": {\n      \"description\": \"Public hostname the tunnel answers on, e.g. ci-worker.example.com.\",\n      \"examples\": [\n        \"example-value\"\n      ],\n      \"minLength\": 1,\n      \"type\": \"string\",\n      \"x-env-key\": \"GHA_INDIE_WORKER_HOSTNAME\",\n      \"x-flag-type\": \"string\"\n    },\n    \"GHA_INDIE_WORKER_JSON\": {\n      \"description\": \"Emit JSON.\",\n      \"enum\": [\n        \"0\",\n        \"1\",\n        \"true\",\n        \"false\",\n        \"TRUE\",\n        \"FALSE\",\n        \"yes\",\n        \"no\",\n        \"YES\",\n        \"NO\"\n      ],\n      \"examples\": [\n        \"true\",\n        \"false\",\n        \"1\",\n        \"0\"\n      ],\n      \"minLength\": 1,\n      \"type\": \"string\",\n      \"x-env-key\": \"GHA_INDIE_WORKER_JSON\",\n      \"x-flag-type\": \"bool\"\n    },\n    \"GHA_INDIE_WORKER_PR\": {\n      \"description\": \"Pull request number to verify.\",\n      \"examples\": [\n        \"example-value\"\n      ],\n      \"minLength\": 1,\n      \"type\": \"string\",\n      \"x-env-key\": \"GHA_INDIE_WORKER_PR\",\n      \"x-flag-type\": \"string\"\n    },\n    \"GHA_INDIE_WORKER_PROFILE\": {\n      \"description\": \"Fixed CI profile to run.\",\n      \"examples\": [\n        \"example-value\"\n      ],\n      \"minLength\": 1,\n      \"type\": \"string\",\n      \"x-env-key\": \"GHA_INDIE_WORKER_PROFILE\",\n      \"x-flag-type\": \"string\"\n    },\n    \"GHA_INDIE_WORKER_REPO\": {\n      \"description\": \"Repository as owner/name, optionally with #number.\",\n      \"examples\": [\n        \"example-value\"\n      ],\n      \"minLength\": 1,\n      \"type\": \"string\",\n      \"x-env-key\": \"GHA_INDIE_WORKER_REPO\",\n      \"x-flag-type\": \"string\"\n    },\n    \"GHA_INDIE_WORKER_TUNNEL_NAME\": {\n      \"description\": \"Name of the Cloudflare named tunnel.\",\n      \"examples\": [\n        \"example-value\"\n      ],\n      \"minLength\": 1,\n      \"type\": \"string\",\n      \"x-env-key\": \"GHA_INDIE_WORKER_TUNNEL_NAME\",\n      \"x-flag-type\": \"string\"\n    },\n    \"GHA_INDIE_WORKER_WEBHOOK_URL\": {\n      \"description\": \"Webhook delivery URL, defaulting to the tunnel hostname.\",\n      \"examples\": [\n        \"http://127.0.0.1:8080\",\n        \"https://api.example.test\"\n      ],\n      \"minLength\": 1,\n      \"type\": \"string\",\n      \"x-env-key\": \"GHA_INDIE_WORKER_WEBHOOK_URL\",\n      \"x-flag-type\": \"string\"\n    },\n    \"INDIEBUILD_CONFIG\": {\n      \"description\": \"Path to the repository IndieBuild TOML contract.\",\n      \"examples\": [\n        \"example-value\"\n      ],\n      \"minLength\": 1,\n      \"type\": \"string\",\n      \"x-env-key\": \"INDIEBUILD_CONFIG\",\n      \"x-flag-type\": \"string\"\n    }\n  },\n  \"title\": \"CliEnv resolved environment\",\n  \"type\": \"object\",\n  \"x-flags-2-env\": {\n    \"generator\": \"flags-2-env\",\n    \"service\": null,\n    \"typeName\": \"CliEnv\"\n  }\n}\n";
+pub const VALUES_SCHEMA_JSON: &str = "{\n  \"$id\": \"https://github.com/flags-2-env/flags-2-env-cli/generated/json-schema/service/env.values.schema.json\",\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"additionalProperties\": false,\n  \"description\": \"Parsed flags-2-env values for CliEnv. extra properties are forbidden.\",\n  \"properties\": {\n    \"api_base\": {\n      \"minLength\": 1,\n      \"type\": \"string\"\n    },\n    \"detach\": {\n      \"type\": \"boolean\"\n    },\n    \"env_map_probe\": {\n      \"anyOf\": [\n        {\n          \"minLength\": 1,\n          \"type\": \"string\"\n        },\n        {\n          \"type\": \"null\"\n        }\n      ]\n    },\n    \"hostname\": {\n      \"anyOf\": [\n        {\n          \"minLength\": 1,\n          \"type\": \"string\"\n        },\n        {\n          \"type\": \"null\"\n        }\n      ]\n    },\n    \"indiebuild_config\": {\n      \"minLength\": 1,\n      \"type\": \"string\"\n    },\n    \"json\": {\n      \"type\": \"boolean\"\n    },\n    \"pr\": {\n      \"anyOf\": [\n        {\n          \"minLength\": 1,\n          \"type\": \"string\"\n        },\n        {\n          \"type\": \"null\"\n        }\n      ]\n    },\n    \"profile\": {\n      \"minLength\": 1,\n      \"type\": \"string\"\n    },\n    \"repo\": {\n      \"anyOf\": [\n        {\n          \"minLength\": 1,\n          \"type\": \"string\"\n        },\n        {\n          \"type\": \"null\"\n        }\n      ]\n    },\n    \"tunnel_name\": {\n      \"minLength\": 1,\n      \"type\": \"string\"\n    },\n    \"webhook_url\": {\n      \"anyOf\": [\n        {\n          \"minLength\": 1,\n          \"type\": \"string\"\n        },\n        {\n          \"type\": \"null\"\n        }\n      ]\n    }\n  },\n  \"required\": [\n    \"api_base\",\n    \"detach\",\n    \"indiebuild_config\",\n    \"json\",\n    \"profile\",\n    \"tunnel_name\"\n  ],\n  \"title\": \"CliEnvValues\",\n  \"type\": \"object\",\n  \"x-flags-2-env\": {\n    \"generator\": \"flags-2-env\",\n    \"service\": null,\n    \"typeName\": \"CliEnv\"\n  }\n}\n";
+
+/// Like `load_from`, but errors when a required key is missing or empty.
+pub fn try_load_from(lookup: impl Fn(&str) -> Option<String>) -> Result<CliEnvValues, MissingEnv> {
+    let values = load_from(lookup);
+    Ok(values)
+}
+
+/// Effectful: read the process environment, erroring on missing required keys.
+pub fn try_load_from_os() -> Result<CliEnvValues, MissingEnv> {
+    try_load_from(|key| std::env::var(key).ok())
 }

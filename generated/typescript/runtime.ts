@@ -2,16 +2,32 @@
 
 export interface CliEnvValues {
   readonly api_base: string;
+  readonly detach: boolean;
   readonly env_map_probe?: string;
+  readonly hostname?: string;
+  readonly indiebuild_config: string;
   readonly json: boolean;
+  readonly pr?: string;
+  readonly profile: string;
+  readonly repo?: string;
+  readonly tunnel_name: string;
+  readonly webhook_url?: string;
 }
 
 /** Pure: resolve values from an explicit lookup. */
 export function loadFrom(lookup: (key: string) => string | undefined): CliEnvValues {
   return {
-    api_base: nonEmpty(lookup("GHA_INDIE_WORKER_API_BASE")) ?? "http://127.0.0.1:8080",
+    api_base: nonEmpty(lookup("GHA_INDIE_WORKER_API_BASE")) ?? "http://127.0.0.1:18095",
+    detach: parseBool(lookup("GHA_INDIE_WORKER_DETACH"), false),
     env_map_probe: nonEmpty(lookup("ENV_MAP_PROBE")),
+    hostname: nonEmpty(lookup("GHA_INDIE_WORKER_HOSTNAME")),
+    indiebuild_config: nonEmpty(lookup("INDIEBUILD_CONFIG")) ?? ".indiebuild.toml",
     json: parseBool(lookup("GHA_INDIE_WORKER_JSON"), false),
+    pr: nonEmpty(lookup("GHA_INDIE_WORKER_PR")),
+    profile: nonEmpty(lookup("GHA_INDIE_WORKER_PROFILE")) ?? "rust-verify",
+    repo: nonEmpty(lookup("GHA_INDIE_WORKER_REPO")),
+    tunnel_name: nonEmpty(lookup("GHA_INDIE_WORKER_TUNNEL_NAME")) ?? "ci-worker",
+    webhook_url: nonEmpty(lookup("GHA_INDIE_WORKER_WEBHOOK_URL")),
   };
 }
 
@@ -80,7 +96,7 @@ export function requireEnv(
   if (trimmed) {
     return trimmed;
   }
-  throw new MissingEnvError({ name, expectedType, examples });
+  throw new MissingEnvError({ envKey: name, expectedType, examples });
 }
 
 function pick(
@@ -140,6 +156,17 @@ function dotenvEnabled(): boolean {
   return !["0", "false", "FALSE", "no", "NO"].includes(value?.trim() ?? "");
 }
 
+function isSafeDotenvPath(path: string): boolean {
+  if (!path || path.includes("\0") || path.includes("..")) {
+    return false;
+  }
+  if (path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path)) {
+    return false;
+  }
+  const base = path.split(/[\\/]/).pop() ?? "";
+  return base === ".env" || base.startsWith(".env.");
+}
+
 export function loadDotenvFiles(files: readonly string[]): Record<string, string> {
   if (!dotenvEnabled() || typeof process === "undefined") {
     return {};
@@ -150,7 +177,7 @@ export function loadDotenvFiles(files: readonly string[]): Record<string, string
   } catch {
     return {};
   }
-  return files.reduce<Record<string, string>>((acc, path) => {
+  return files.filter(isSafeDotenvPath).reduce<Record<string, string>>((acc, path) => {
     try {
       return { ...acc, ...parseDotenv(fs!.readFileSync(path, "utf8")) };
     } catch {
@@ -159,18 +186,19 @@ export function loadDotenvFiles(files: readonly string[]): Record<string, string
   }, {});
 }
 export interface MissingEnv {
-  readonly name: string;
+  readonly envKey: string;
   readonly expectedType: string;
   readonly examples: readonly string[];
 }
 
 export class MissingEnvError extends Error implements MissingEnv {
-  readonly name: string;
+  readonly envKey: string;
   readonly expectedType: string;
   readonly examples: readonly string[];
   constructor(fields: MissingEnv) {
-    super(`missing required environment variable ${fields.name}\n  expected type: ${fields.expectedType}\n  examples: ${fields.examples.join(", ")}`);
-    this.name = fields.name;
+    super(`missing required environment variable ${fields.envKey}\n  expected type: ${fields.expectedType}\n  examples: ${fields.examples.join(", ")}`);
+    this.name = "MissingEnvError";
+    this.envKey = fields.envKey;
     this.expectedType = fields.expectedType;
     this.examples = fields.examples;
   }
@@ -183,19 +211,192 @@ export function loadEnvMap(
   flags: Record<string, string | undefined> = {},
 ): Record<string, string> {
   const out: Record<string, string> = {};
-  const api_base = pick(["GHA_INDIE_WORKER_API_BASE"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, "http://127.0.0.1:8080");
+  const api_base = pick(["GHA_INDIE_WORKER_API_BASE"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, "http://127.0.0.1:18095");
   if (api_base !== undefined) out["GHA_INDIE_WORKER_API_BASE"] = api_base;
+  const detach = pick(["GHA_INDIE_WORKER_DETACH"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, "false");
+  if (detach !== undefined) out["GHA_INDIE_WORKER_DETACH"] = detach;
   const env_map_probe = pick(["ENV_MAP_PROBE"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, undefined);
   if (env_map_probe !== undefined) out["ENV_MAP_PROBE"] = env_map_probe;
+  const hostname = pick(["GHA_INDIE_WORKER_HOSTNAME"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, undefined);
+  if (hostname !== undefined) out["GHA_INDIE_WORKER_HOSTNAME"] = hostname;
+  const indiebuild_config = pick(["INDIEBUILD_CONFIG"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, ".indiebuild.toml");
+  if (indiebuild_config !== undefined) out["INDIEBUILD_CONFIG"] = indiebuild_config;
   const json = pick(["GHA_INDIE_WORKER_JSON"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, "false");
   if (json !== undefined) out["GHA_INDIE_WORKER_JSON"] = json;
+  const pr = pick(["GHA_INDIE_WORKER_PR"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, undefined);
+  if (pr !== undefined) out["GHA_INDIE_WORKER_PR"] = pr;
+  const profile = pick(["GHA_INDIE_WORKER_PROFILE"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, "rust-verify");
+  if (profile !== undefined) out["GHA_INDIE_WORKER_PROFILE"] = profile;
+  const repo = pick(["GHA_INDIE_WORKER_REPO"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, undefined);
+  if (repo !== undefined) out["GHA_INDIE_WORKER_REPO"] = repo;
+  const tunnel_name = pick(["GHA_INDIE_WORKER_TUNNEL_NAME"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, "ci-worker");
+  if (tunnel_name !== undefined) out["GHA_INDIE_WORKER_TUNNEL_NAME"] = tunnel_name;
+  const webhook_url = pick(["GHA_INDIE_WORKER_WEBHOOK_URL"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, undefined);
+  if (webhook_url !== undefined) out["GHA_INDIE_WORKER_WEBHOOK_URL"] = webhook_url;
+  const contract = checkOsEnv(out);
+  if (contract.length > 0) {
+    const first = contract[0];
+    throw new MissingEnvError({ envKey: first.path, expectedType: "json-schema-2020-12", examples: [] });
+  }
   return out;
 }
 
-const DOTENV_FILES: readonly string[] = [".env"];
+const DOTENV_FILES: readonly string[] = [];
 /** Effectful overlay: `.env` files then `process.env`, ranked per key. */
 export function loadEnvMapFromOs(
   shell: Record<string, string | undefined> = typeof process !== "undefined" ? process.env : {},
 ): Record<string, string> {
   return loadEnvMap(shell, loadDotenvFiles(DOTENV_FILES), {});
+}
+
+export interface ContractError {
+  readonly path: string;
+  readonly message: string;
+}
+
+/** Validate the resolved env map against the generated JSON Schema rules. */
+export function checkOsEnv(env: Record<string, string>): ContractError[] {
+  const errors: ContractError[] = [];
+  {
+    const raw = nonEmpty(env["GHA_INDIE_WORKER_API_BASE"]);
+    if (raw !== undefined) {
+      const message = contractCheckString(raw);
+      if (message) errors.push({ path: "GHA_INDIE_WORKER_API_BASE", message });
+    }
+  }
+  {
+    const raw = nonEmpty(env["GHA_INDIE_WORKER_DETACH"]);
+    if (raw !== undefined) {
+      const message = contractCheckBool(raw);
+      if (message) errors.push({ path: "GHA_INDIE_WORKER_DETACH", message });
+    }
+  }
+  {
+    const raw = nonEmpty(env["ENV_MAP_PROBE"]);
+    if (raw !== undefined) {
+      const message = contractCheckString(raw);
+      if (message) errors.push({ path: "ENV_MAP_PROBE", message });
+    }
+  }
+  {
+    const raw = nonEmpty(env["GHA_INDIE_WORKER_HOSTNAME"]);
+    if (raw !== undefined) {
+      const message = contractCheckString(raw);
+      if (message) errors.push({ path: "GHA_INDIE_WORKER_HOSTNAME", message });
+    }
+  }
+  {
+    const raw = nonEmpty(env["INDIEBUILD_CONFIG"]);
+    if (raw !== undefined) {
+      const message = contractCheckString(raw);
+      if (message) errors.push({ path: "INDIEBUILD_CONFIG", message });
+    }
+  }
+  {
+    const raw = nonEmpty(env["GHA_INDIE_WORKER_JSON"]);
+    if (raw !== undefined) {
+      const message = contractCheckBool(raw);
+      if (message) errors.push({ path: "GHA_INDIE_WORKER_JSON", message });
+    }
+  }
+  {
+    const raw = nonEmpty(env["GHA_INDIE_WORKER_PR"]);
+    if (raw !== undefined) {
+      const message = contractCheckString(raw);
+      if (message) errors.push({ path: "GHA_INDIE_WORKER_PR", message });
+    }
+  }
+  {
+    const raw = nonEmpty(env["GHA_INDIE_WORKER_PROFILE"]);
+    if (raw !== undefined) {
+      const message = contractCheckString(raw);
+      if (message) errors.push({ path: "GHA_INDIE_WORKER_PROFILE", message });
+    }
+  }
+  {
+    const raw = nonEmpty(env["GHA_INDIE_WORKER_REPO"]);
+    if (raw !== undefined) {
+      const message = contractCheckString(raw);
+      if (message) errors.push({ path: "GHA_INDIE_WORKER_REPO", message });
+    }
+  }
+  {
+    const raw = nonEmpty(env["GHA_INDIE_WORKER_TUNNEL_NAME"]);
+    if (raw !== undefined) {
+      const message = contractCheckString(raw);
+      if (message) errors.push({ path: "GHA_INDIE_WORKER_TUNNEL_NAME", message });
+    }
+  }
+  {
+    const raw = nonEmpty(env["GHA_INDIE_WORKER_WEBHOOK_URL"]);
+    if (raw !== undefined) {
+      const message = contractCheckString(raw);
+      if (message) errors.push({ path: "GHA_INDIE_WORKER_WEBHOOK_URL", message });
+    }
+  }
+  for (const key of Object.keys(env)) {
+    if (!KNOWN_ENV_KEYS.includes(key)) {
+      errors.push({ path: key, message: "additional property not in the env contract" });
+    }
+  }
+  return errors;
+}
+
+export function assertOsEnv(env: Record<string, string>): void {
+  const errors = checkOsEnv(env);
+  if (errors.length > 0) {
+    throw new Error(`environment contract violated: ${errors.map((error) => `${error.path}: ${error.message}`).join("; ")}`);
+  }
+}
+
+const KNOWN_ENV_KEYS: readonly string[] = ["GHA_INDIE_WORKER_API_BASE", "GHA_INDIE_WORKER_DETACH", "ENV_MAP_PROBE", "GHA_INDIE_WORKER_HOSTNAME", "INDIEBUILD_CONFIG", "GHA_INDIE_WORKER_JSON", "GHA_INDIE_WORKER_PR", "GHA_INDIE_WORKER_PROFILE", "GHA_INDIE_WORKER_REPO", "GHA_INDIE_WORKER_TUNNEL_NAME", "GHA_INDIE_WORKER_WEBHOOK_URL", ];
+
+function contractCheckString(raw: string): string | undefined {
+  return raw.length === 0 ? "empty string" : undefined;
+}
+function contractCheckBool(raw: string): string | undefined {
+  switch (raw) {
+    case "0":
+    case "1":
+    case "true":
+    case "false":
+    case "TRUE":
+    case "FALSE":
+    case "yes":
+    case "no":
+    case "YES":
+    case "NO":
+      return undefined;
+    default:
+      return `not a bool env token: ${raw}`;
+  }
+}
+function contractCheckInt(raw: string): string | undefined {
+  return /^-?[0-9]+$/.test(raw) ? undefined : `not an int: ${raw}`;
+}
+function contractCheckFloat(raw: string): string | undefined {
+  return Number.isNaN(Number.parseFloat(raw)) ? `not a float: ${raw}` : undefined;
+}
+function contractCheckJson(raw: string): string | undefined {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === "object") return undefined;
+    return "expected JSON object or array string";
+  } catch {
+    return "expected JSON object or array string";
+  }
+}
+
+export const OS_ENV_SCHEMA = {"$id":"https://github.com/flags-2-env/flags-2-env-cli/generated/json-schema/service/env.os.schema.json","$schema":"https://json-schema.org/draft/2020-12/schema","additionalProperties":false,"description":"Resolved environment map for CliEnv after flags-2-env overlay (flags > env_shell > env_file unless reordered). Values are still strings, as the OS stores them. Validate this object at runtime with `check_os_env` or `f2e check-contract`; do not hand-edit generated sources.","properties":{"ENV_MAP_PROBE":{"description":"Runtime environment key ENV_MAP_PROBE.","examples":["example-value"],"minLength":1,"type":"string","x-env-key":"ENV_MAP_PROBE","x-flag-type":"string"},"GHA_INDIE_WORKER_API_BASE":{"description":"API HTTP base URL.","examples":["http://127.0.0.1:8080","https://api.example.test"],"minLength":1,"type":"string","x-env-key":"GHA_INDIE_WORKER_API_BASE","x-flag-type":"string"},"GHA_INDIE_WORKER_DETACH":{"description":"Run in the background instead of the foreground.","enum":["0","1","true","false","TRUE","FALSE","yes","no","YES","NO"],"examples":["true","false","1","0"],"minLength":1,"type":"string","x-env-key":"GHA_INDIE_WORKER_DETACH","x-flag-type":"bool"},"GHA_INDIE_WORKER_HOSTNAME":{"description":"Public hostname the tunnel answers on, e.g. ci-worker.example.com.","examples":["example-value"],"minLength":1,"type":"string","x-env-key":"GHA_INDIE_WORKER_HOSTNAME","x-flag-type":"string"},"GHA_INDIE_WORKER_JSON":{"description":"Emit JSON.","enum":["0","1","true","false","TRUE","FALSE","yes","no","YES","NO"],"examples":["true","false","1","0"],"minLength":1,"type":"string","x-env-key":"GHA_INDIE_WORKER_JSON","x-flag-type":"bool"},"GHA_INDIE_WORKER_PR":{"description":"Pull request number to verify.","examples":["example-value"],"minLength":1,"type":"string","x-env-key":"GHA_INDIE_WORKER_PR","x-flag-type":"string"},"GHA_INDIE_WORKER_PROFILE":{"description":"Fixed CI profile to run.","examples":["example-value"],"minLength":1,"type":"string","x-env-key":"GHA_INDIE_WORKER_PROFILE","x-flag-type":"string"},"GHA_INDIE_WORKER_REPO":{"description":"Repository as owner/name, optionally with #number.","examples":["example-value"],"minLength":1,"type":"string","x-env-key":"GHA_INDIE_WORKER_REPO","x-flag-type":"string"},"GHA_INDIE_WORKER_TUNNEL_NAME":{"description":"Name of the Cloudflare named tunnel.","examples":["example-value"],"minLength":1,"type":"string","x-env-key":"GHA_INDIE_WORKER_TUNNEL_NAME","x-flag-type":"string"},"GHA_INDIE_WORKER_WEBHOOK_URL":{"description":"Webhook delivery URL, defaulting to the tunnel hostname.","examples":["http://127.0.0.1:8080","https://api.example.test"],"minLength":1,"type":"string","x-env-key":"GHA_INDIE_WORKER_WEBHOOK_URL","x-flag-type":"string"},"INDIEBUILD_CONFIG":{"description":"Path to the repository IndieBuild TOML contract.","examples":["example-value"],"minLength":1,"type":"string","x-env-key":"INDIEBUILD_CONFIG","x-flag-type":"string"}},"title":"CliEnv resolved environment","type":"object","x-flags-2-env":{"generator":"flags-2-env","service":null,"typeName":"CliEnv"}} as const;
+
+/** Like `loadFrom`, but throws when a required key is missing or empty. */
+export function tryLoadFrom(lookup: (key: string) => string | undefined): CliEnvValues {
+  const values = loadFrom(lookup);
+  return values;
+}
+
+export function tryLoadFromOs(
+  env: Record<string, string | undefined> = typeof process !== "undefined" ? process.env : {},
+): CliEnvValues {
+  return tryLoadFrom((key) => env[key]);
 }

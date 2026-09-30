@@ -4,8 +4,8 @@ use std::io;
 use std::sync::OnceLock;
 
 use ores_clis_core::{
-    CliPolicy, ColorRole, EmitDisposition, EnvironmentHints, LogLevel, ProtocolEmitter,
-    RuntimePolicy, StreamRole, TerminalState, paint, top_level_io,
+    paint, top_level_io, CliPolicy, ColorRole, EmitDisposition, EnvironmentHints, LogLevel,
+    ProtocolEmitter, RuntimePolicy, StreamRole, TerminalState,
 };
 
 use crate::error::CliError;
@@ -48,7 +48,9 @@ pub fn emit(json: bool, human: impl std::fmt::Display, machine: &str) -> Result<
     } else {
         emitter.emit_primary_human_line(&paint(runtime.color_stdout(), ColorRole::Success, human))
     };
-    match top_level_io(write).map_err(|error| CliError::Command(format!("output failed: {error}")))? {
+    match top_level_io(write)
+        .map_err(|error| CliError::Command(format!("output failed: {error}")))?
+    {
         EmitDisposition::Written | EmitDisposition::ConsumerClosed => Ok(()),
     }
 }

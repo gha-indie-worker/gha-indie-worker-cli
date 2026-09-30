@@ -4,8 +4,20 @@ final class CliEnv {
   const CliEnv._();
 
   static const String apiBase = 'GHA_INDIE_WORKER_API_BASE';
-  static const String apiBaseDefault = 'http://127.0.0.1:8080';
+  static const String apiBaseDefault = 'http://127.0.0.1:18095';
+  static const String detach = 'GHA_INDIE_WORKER_DETACH';
+  static const String detachDefault = 'false';
   static const String envMapProbe = 'ENV_MAP_PROBE';
+  static const String hostname = 'GHA_INDIE_WORKER_HOSTNAME';
+  static const String indiebuildConfig = 'INDIEBUILD_CONFIG';
+  static const String indiebuildConfigDefault = '.indiebuild.toml';
   static const String json = 'GHA_INDIE_WORKER_JSON';
   static const String jsonDefault = 'false';
+  static const String pr = 'GHA_INDIE_WORKER_PR';
+  static const String profile = 'GHA_INDIE_WORKER_PROFILE';
+  static const String profileDefault = 'rust-verify';
+  static const String repo = 'GHA_INDIE_WORKER_REPO';
+  static const String tunnelName = 'GHA_INDIE_WORKER_TUNNEL_NAME';
+  static const String tunnelNameDefault = 'ci-worker';
+  static const String webhookUrl = 'GHA_INDIE_WORKER_WEBHOOK_URL';
 }

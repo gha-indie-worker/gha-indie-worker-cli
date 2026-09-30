@@ -1,23 +1,61 @@
-# Generated code — do not edit
+# `generated/` — frozen artifacts (read-only)
 
-Everything in this directory is **derivative output**. It is produced by a
-generator from an upstream source of truth (TypeSpec and/or JSON Schema, an
-ORM schema, or a protocol definition), and it is regenerated wholesale.
+This tree is **generated**. Do not hand-edit anything here except this
+README if you are documenting a local exception.
 
-**Any edit you make here will be silently destroyed the next time the
-generator runs.** If something in this directory is wrong, the defect is in
-the generator or in the upstream schema — fix it there.
+Typical producers:
 
-## Why the files are read-only
+- [`flags-2-env`](https://github.com/flags-2-env/flags-2-env-cli) (`f2e generate`)
+- [`api-docs` / `ridl`](https://github.com/oresoftware/api-docs)
+- interface adapters from `schema/tables.json` (`node src/generate.mjs`)
 
-`scripts/lock-generated.sh` strips the write bit from every file in this tree
-so an accidental save fails loudly instead of being lost later.
+## Read-only on disk
 
-Note that git records only the executable bit, not the read-only bit, so the
-permissions do **not** survive a fresh clone. Re-run the script after cloning,
-and wire it into the generator step and CI so the guarantee is enforced rather
-than merely documented.
+After generate, artifact files are `chmod a-w` (0444). Directories stay
+writable so the generator can add files. The generator unfreezes, writes,
+then freezes again.
 
-## Regenerating
+**Git does not store the Unix write bit** — only the executable bit
+(100644 vs 100755). After `git clone` / `git checkout`, files come back
+writable. Restore the policy with:
 
-Run the generator for this repository, then re-run `scripts/lock-generated.sh`.
+```sh
+f2e generate          # or ridl generate / node src/generate.mjs
+# or
+chmod a-w generated/**/*.rs generated/**/*.ts generated/**/*.dart generated/**/*.json
+# or
+scripts/freeze-generated.sh
+```
+
+Do not `chmod u+w` and then commit a hand-edit. Change the source catalog
+(`.cli-flags.toml`, route map, `schema/tables.json`) and regenerate.
+
+## JSON Schema (the contract)
+
+If `json-schema/` is present, those documents are JSON Schema 2020-12.
+They are the interchange contract across Rust, TypeScript, and Dart.
+
+- Compile-time types are generated *from* that catalog.
+- Runtime `check_os_env` / `checkOsEnv` / `validate()` must pass on real
+  payloads, not only on types that compile.
+- Unit tests should feed **valid** and **invalid** instances (missing
+  required keys, wrong types, extra properties).
+
+```sh
+f2e check-contract --config .cli-flags.toml --json env.fixture.json
+```
+
+## Gitignored trees
+
+If this folder is listed in `.gitignore`, artifacts stay local. Keep this
+README tracked with:
+
+```
+generated/*
+!generated/README.md
+```
+
+(Do not ignore the directory node itself as `generated/` — that prevents
+the `!README.md` exception from working.)
+
+Regenerate after clone; CI should fail if checked-in artifacts drift.

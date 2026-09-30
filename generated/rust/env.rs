@@ -2,25 +2,61 @@
 #![allow(dead_code)]
 
 pub const API_BASE: &str = "GHA_INDIE_WORKER_API_BASE";
-pub const API_BASE_DEFAULT: &str = "http://127.0.0.1:8080";
+pub const API_BASE_DEFAULT: &str = "http://127.0.0.1:18095";
+pub const DETACH: &str = "GHA_INDIE_WORKER_DETACH";
+pub const DETACH_DEFAULT: &str = "false";
 pub const ENV_MAP_PROBE: &str = "ENV_MAP_PROBE";
+pub const HOSTNAME: &str = "GHA_INDIE_WORKER_HOSTNAME";
+pub const INDIEBUILD_CONFIG: &str = "INDIEBUILD_CONFIG";
+pub const INDIEBUILD_CONFIG_DEFAULT: &str = ".indiebuild.toml";
 pub const JSON: &str = "GHA_INDIE_WORKER_JSON";
 pub const JSON_DEFAULT: &str = "false";
+pub const PR: &str = "GHA_INDIE_WORKER_PR";
+pub const PROFILE: &str = "GHA_INDIE_WORKER_PROFILE";
+pub const PROFILE_DEFAULT: &str = "rust-verify";
+pub const REPO: &str = "GHA_INDIE_WORKER_REPO";
+pub const TUNNEL_NAME: &str = "GHA_INDIE_WORKER_TUNNEL_NAME";
+pub const TUNNEL_NAME_DEFAULT: &str = "ci-worker";
+pub const WEBHOOK_URL: &str = "GHA_INDIE_WORKER_WEBHOOK_URL";
 
 /// Compile-time env key names from `.cli-flags.toml`.
 pub struct CliEnv {
     /// API HTTP base URL.
     pub api_base: &'static str,
+    /// Run in the background instead of the foreground.
+    pub detach: &'static str,
     /// Runtime environment key ENV_MAP_PROBE.
     pub env_map_probe: &'static str,
+    /// Public hostname the tunnel answers on, e.g. ci-worker.example.com.
+    pub hostname: &'static str,
+    /// Path to the repository IndieBuild TOML contract.
+    pub indiebuild_config: &'static str,
     /// Emit JSON.
     pub json: &'static str,
+    /// Pull request number to verify.
+    pub pr: &'static str,
+    /// Fixed CI profile to run.
+    pub profile: &'static str,
+    /// Repository as owner/name, optionally with #number.
+    pub repo: &'static str,
+    /// Name of the Cloudflare named tunnel.
+    pub tunnel_name: &'static str,
+    /// Webhook delivery URL, defaulting to the tunnel hostname.
+    pub webhook_url: &'static str,
 }
 
 impl CliEnv {
     pub const KEYS: Self = Self {
         api_base: API_BASE,
+        detach: DETACH,
         env_map_probe: ENV_MAP_PROBE,
+        hostname: HOSTNAME,
+        indiebuild_config: INDIEBUILD_CONFIG,
         json: JSON,
+        pr: PR,
+        profile: PROFILE,
+        repo: REPO,
+        tunnel_name: TUNNEL_NAME,
+        webhook_url: WEBHOOK_URL,
     };
 }

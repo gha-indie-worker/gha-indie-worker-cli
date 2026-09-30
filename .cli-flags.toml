@@ -8,7 +8,7 @@ allow_unknown = false
 env = "GHA_INDIE_WORKER_API_BASE"
 aliases = ["api-base"]
 type = "string"
-default = "http://127.0.0.1:8080"
+default = "http://127.0.0.1:18095"
 help = "API HTTP base URL."
 
 [flags.json]
@@ -36,6 +36,66 @@ help = "Validate repository-root .indiebuild.toml and print the normalized contr
 
 [flags.env-map-probe]
 env = "ENV_MAP_PROBE"
-long = "env-map-probe"
+aliases = ["env-map-probe"]
 type = "string"
 help = "Runtime environment key ENV_MAP_PROBE."
+
+[commands.worker-up]
+help = "Start the build worker on this machine."
+
+[commands.tunnel-init]
+help = "Create the named Cloudflare tunnel and its DNS route."
+
+[commands.tunnel-up]
+help = "Run the named Cloudflare tunnel."
+
+[commands.webhook-install]
+help = "Point a repository's GitHub webhook at this worker."
+
+[commands.verify]
+help = "Verify one open pull request and report the result to GitHub."
+
+[flags.detach]
+env = "GHA_INDIE_WORKER_DETACH"
+aliases = ["detach"]
+type = "boolean"
+default = false
+help = "Run in the background instead of the foreground."
+
+[flags.hostname]
+env = "GHA_INDIE_WORKER_HOSTNAME"
+aliases = ["hostname"]
+type = "string"
+help = "Public hostname the tunnel answers on, e.g. ci-worker.example.com."
+
+[flags.tunnel-name]
+env = "GHA_INDIE_WORKER_TUNNEL_NAME"
+aliases = ["tunnel-name"]
+type = "string"
+default = "ci-worker"
+help = "Name of the Cloudflare named tunnel."
+
+[flags.repo]
+env = "GHA_INDIE_WORKER_REPO"
+aliases = ["repo"]
+type = "string"
+help = "Repository as owner/name, optionally with #number."
+
+[flags.pr]
+env = "GHA_INDIE_WORKER_PR"
+aliases = ["pr"]
+type = "string"
+help = "Pull request number to verify."
+
+[flags.webhook-url]
+env = "GHA_INDIE_WORKER_WEBHOOK_URL"
+aliases = ["webhook-url"]
+type = "string"
+help = "Webhook delivery URL, defaulting to the tunnel hostname."
+
+[flags.profile]
+env = "GHA_INDIE_WORKER_PROFILE"
+aliases = ["profile"]
+type = "string"
+default = "rust-verify"
+help = "Fixed CI profile to run."
