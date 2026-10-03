@@ -2,6 +2,10 @@
 
 pub mod health;
 pub mod status;
+pub mod tunnel;
+pub mod verify;
+pub mod webhook;
+pub mod worker;
 
 use crate::args::Command;
 use crate::config::Config;
@@ -15,5 +19,10 @@ pub fn dispatch(config: &Config, command: Command) -> Result<(), CliError> {
         }
         Command::Health => health::run(config),
         Command::Status => status::run(config),
+        Command::WorkerUp => worker::up(config),
+        Command::TunnelInit => tunnel::init(config),
+        Command::TunnelUp => tunnel::up(config),
+        Command::WebhookInstall => webhook::install(config),
+        Command::Verify => verify::run(config),
     }
 }

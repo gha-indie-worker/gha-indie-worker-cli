@@ -34,6 +34,11 @@ pub fn parse_cli_flags(argv: &[String], config_path: &Path) -> Result<(Command, 
         "" | "help" => Command::Help,
         "health" => Command::Health,
         "status" => Command::Status,
+        "worker-up" => Command::WorkerUp,
+        "tunnel-init" => Command::TunnelInit,
+        "tunnel-up" => Command::TunnelUp,
+        "webhook-install" => Command::WebhookInstall,
+        "verify" => Command::Verify,
         other => return Err(CliError::Usage(format!("unknown command {other}"))),
     };
     Ok((command, parsed.flags.into_iter().collect()))
