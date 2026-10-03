@@ -33,10 +33,11 @@ checksum = "3e0f1c7c3a72c66fd80abe965175f7523475c0489a87d3ff9d6e8c87d87a9d2d"
 [[package]]
 name = "flags2env"
 version = "0.1.0"
-source = "git+https://github.com/flags-2-env/flags-2-env.git?rev=377bff1a4e7424eb98377997a232ddc0fc700f59#377bff1a4e7424eb98377997a232ddc0fc700f59"
+source = "git+https://github.com/flags-2-env/flags-2-env.git?rev=333c2ace93c362d274171ab0e0edf613d96a8e59#333c2ace93c362d274171ab0e0edf613d96a8e59"
 dependencies = [
  "cc",
  "libloading",
+ "serde",
  "serde_json",
 ]
 
@@ -45,6 +46,7 @@ name = "gha-indie-worker-cli"
 version = "0.1.0"
 dependencies = [
  "flags2env",
+ "ores-clis-core",
  "serde",
  "serde_json",
  "thiserror",
@@ -88,6 +90,11 @@ name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
+
+[[package]]
+name = "ores-clis-core"
+version = "0.1.0"
+source = "git+https://github.com/ORESoftware/ores-clis-core.git?rev=2ea696bd8dd066483d29c37af9e34036cbae82f9#2ea696bd8dd066483d29c37af9e34036cbae82f9"
 
 [[package]]
 name = "proc-macro2"
