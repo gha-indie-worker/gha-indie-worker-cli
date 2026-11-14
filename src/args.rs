@@ -28,29 +28,33 @@ pub enum Command {
 /// Queries, fragments, alternate hosts and unexpected URL routes fail closed.
 fn parse_pr_number(raw: &str) -> Result<u64, CliError> {
     if raw.is_empty() || !raw.bytes().all(|byte| byte.is_ascii_digit()) {
-        return Err(CliError::Usage(format!("{raw} is not a pull request number")));
+        return Err(CliError::Usage(format!(
+            "{raw} is not a pull request number"
+        )));
     }
     match raw.parse::<u64>() {
         Ok(number) if number > 0 => Ok(number),
         Ok(_) => Err(CliError::Usage("pull request numbers start at 1".into())),
-        Err(_) => Err(CliError::Usage(format!("{raw} is not a pull request number"))),
+        Err(_) => Err(CliError::Usage(format!(
+            "{raw} is not a pull request number"
+        ))),
     }
 }
 
 pub fn parse_repo_spec(spec: &str) -> Result<(String, Option<u64>), CliError> {
     let value = spec.trim();
-    let invalid = || CliError::Usage(format!(
-        "expected owner/name, owner/name#N or https://github.com/owner/name/pull/N, got {spec:?}"
-    ));
+    let invalid = || {
+        CliError::Usage(format!(
+            "expected owner/name, owner/name#N or https://github.com/owner/name/pull/N, got {spec:?}"
+        ))
+    };
 
     let (repo, number) = if let Some(path) = value.strip_prefix("https://github.com/") {
         // Permit one trailing slash, but not arbitrary nested GitHub routes.
         let path = path.strip_suffix('/').unwrap_or(path);
         match path.split('/').collect::<Vec<_>>().as_slice() {
             [owner, name] => (format!("{owner}/{name}"), None),
-            [owner, name, "pull", raw] => {
-                (format!("{owner}/{name}"), Some(parse_pr_number(raw)?))
-            }
+            [owner, name, "pull", raw] => (format!("{owner}/{name}"), Some(parse_pr_number(raw)?)),
             _ => return Err(invalid()),
         }
     } else {
@@ -65,9 +69,9 @@ pub fn parse_repo_spec(spec: &str) -> Result<(String, Option<u64>), CliError> {
         !part.is_empty()
             && part != "."
             && part != ".."
-            && part.bytes().all(|byte| {
-                byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_')
-            })
+            && part
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_'))
     };
     if !valid_component(owner) || !valid_component(name) {
         return Err(invalid());
@@ -182,14 +186,29 @@ mod repo_spec_tests {
     #[test]
     fn pasted_github_urls_preserve_repository_and_pr_identity() {
         for (spec, expected_number) in [
-            ("https://github.com/gha-indie-worker/gha-indie-worker.rs/pull/123", Some(123)),
-            ("https://github.com/gha-indie-worker/gha-indie-worker.rs/pull/123/", Some(123)),
-            ("https://github.com/gha-indie-worker/gha-indie-worker.rs", None),
-            ("https://github.com/gha-indie-worker/gha-indie-worker.rs/", None),
+            (
+                "https://github.com/gha-indie-worker/gha-indie-worker.rs/pull/123",
+                Some(123),
+            ),
+            (
+                "https://github.com/gha-indie-worker/gha-indie-worker.rs/pull/123/",
+                Some(123),
+            ),
+            (
+                "https://github.com/gha-indie-worker/gha-indie-worker.rs",
+                None,
+            ),
+            (
+                "https://github.com/gha-indie-worker/gha-indie-worker.rs/",
+                None,
+            ),
         ] {
             assert_eq!(
                 parse_repo_spec(spec).unwrap(),
-                ("gha-indie-worker/gha-indie-worker.rs".to_string(), expected_number)
+                (
+                    "gha-indie-worker/gha-indie-worker.rs".to_string(),
+                    expected_number
+                )
             );
         }
     }
