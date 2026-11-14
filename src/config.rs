@@ -142,6 +142,20 @@ mod local_ops_tests {
     }
 
     #[test]
+    fn pasted_github_pull_url_reaches_runtime_configuration() {
+        let config = Config::from_env_map(&map(&[(
+            env::REPO,
+            "https://github.com/gha-indie-worker/gha-indie-worker.rs/pull/123",
+        )]))
+        .expect("valid GitHub pull request URL");
+        assert_eq!(
+            config.repo.as_deref(),
+            Some("gha-indie-worker/gha-indie-worker.rs")
+        );
+        assert_eq!(config.pull_request, Some(123));
+    }
+
+    #[test]
     fn an_explicit_pr_flag_wins_over_the_spec_suffix() {
         let config = Config::from_env_map(&map(&[(env::REPO, "owner/name#31"), (env::PR, "42")]))
             .expect("valid");

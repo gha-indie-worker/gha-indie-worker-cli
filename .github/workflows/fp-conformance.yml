@@ -38,15 +38,15 @@ concurrency:
 jobs:
   conformance:
     name: functional programming conformance
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          python-version: '3.11'
+          persist-credentials: false
 
+      # Uses the Ubuntu 24.04 runner's preinstalled Python 3.12 stdlib.
+      # Avoid a second external Action for this source-only conformance check.
       - name: Scan
         run: |
           python3 tools/fp-conformance/fp_conformance.py . \
