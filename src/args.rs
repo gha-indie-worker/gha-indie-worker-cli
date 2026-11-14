@@ -20,30 +20,59 @@ pub enum Command {
     Verify,
 }
 
-/// Split `owner/repo` or `owner/repo#31` into its parts.
+/// Parse an exact repository identifier or pasted GitHub pull-request URL.
 ///
-/// Accepting the `#number` form means a pull request can be pasted exactly as
-/// it is written down, instead of split across two flags by hand.
-pub fn parse_repo_spec(spec: &str) -> Result<(String, Option<u64>), CliError> {
-    let (repo, number) = match spec.split_once('#') {
-        Some((repo, number)) => {
-            let parsed = number
-                .parse::<u64>()
-                .map_err(|_| CliError::Usage(format!("{number} is not a pull request number")))?;
-            if parsed == 0 {
-                return Err(CliError::Usage("pull request numbers start at 1".into()));
-            }
-            (repo, Some(parsed))
-        }
-        None => (spec, None),
-    };
-    let repo = repo.trim();
-    if repo.matches('/').count() != 1 || repo.starts_with('/') || repo.ends_with('/') {
-        return Err(CliError::Usage(format!(
-            "expected owner/name, got {spec:?}"
-        )));
+/// Accepted: `owner/repo`, `owner/repo#31`,
+/// `https://github.com/owner/repo` and
+/// `https://github.com/owner/repo/pull/31`.
+/// Queries, fragments, alternate hosts and unexpected URL routes fail closed.
+fn parse_pr_number(raw: &str) -> Result<u64, CliError> {
+    if raw.is_empty() || !raw.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(CliError::Usage(format!("{raw} is not a pull request number")));
     }
-    Ok((repo.to_string(), number))
+    match raw.parse::<u64>() {
+        Ok(number) if number > 0 => Ok(number),
+        Ok(_) => Err(CliError::Usage("pull request numbers start at 1".into())),
+        Err(_) => Err(CliError::Usage(format!("{raw} is not a pull request number"))),
+    }
+}
+
+pub fn parse_repo_spec(spec: &str) -> Result<(String, Option<u64>), CliError> {
+    let value = spec.trim();
+    let invalid = || CliError::Usage(format!(
+        "expected owner/name, owner/name#N or https://github.com/owner/name/pull/N, got {spec:?}"
+    ));
+
+    let (repo, number) = if let Some(path) = value.strip_prefix("https://github.com/") {
+        // Permit one trailing slash, but not arbitrary nested GitHub routes.
+        let path = path.strip_suffix('/').unwrap_or(path);
+        match path.split('/').collect::<Vec<_>>().as_slice() {
+            [owner, name] => (format!("{owner}/{name}"), None),
+            [owner, name, "pull", raw] => {
+                (format!("{owner}/{name}"), Some(parse_pr_number(raw)?))
+            }
+            _ => return Err(invalid()),
+        }
+    } else {
+        match value.split_once('#') {
+            Some((repo, raw)) => (repo.to_string(), Some(parse_pr_number(raw)?)),
+            None => (value.to_string(), None),
+        }
+    };
+
+    let (owner, name) = repo.split_once('/').ok_or_else(invalid)?;
+    let valid_component = |part: &str| {
+        !part.is_empty()
+            && part != "."
+            && part != ".."
+            && part.bytes().all(|byte| {
+                byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_')
+            })
+    };
+    if !valid_component(owner) || !valid_component(name) {
+        return Err(invalid());
+    }
+    Ok((repo, number))
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -151,6 +180,21 @@ mod repo_spec_tests {
     }
 
     #[test]
+    fn pasted_github_urls_preserve_repository_and_pr_identity() {
+        for (spec, expected_number) in [
+            ("https://github.com/gha-indie-worker/gha-indie-worker.rs/pull/123", Some(123)),
+            ("https://github.com/gha-indie-worker/gha-indie-worker.rs/pull/123/", Some(123)),
+            ("https://github.com/gha-indie-worker/gha-indie-worker.rs", None),
+            ("https://github.com/gha-indie-worker/gha-indie-worker.rs/", None),
+        ] {
+            assert_eq!(
+                parse_repo_spec(spec).unwrap(),
+                ("gha-indie-worker/gha-indie-worker.rs".to_string(), expected_number)
+            );
+        }
+    }
+
+    #[test]
     fn malformed_specs_are_rejected_rather_than_guessed() {
         for bad in [
             "owner",
@@ -159,6 +203,16 @@ mod repo_spec_tests {
             "owner/",
             "owner/name#x",
             "owner/name#0",
+            "owner/name#-1",
+            "owner/name#1#2",
+            "owner/na me",
+            "owner/..",
+            "owner/name/other",
+            "https://github.com/owner/repo/issues/31",
+            "https://github.com/owner/repo/pull/0",
+            "https://github.com/owner/repo/pull/31?tab=files",
+            "https://github.com/owner/repo/pull/31//",
+            "https://github.com.evil.test/owner/repo/pull/31",
         ] {
             assert!(parse_repo_spec(bad).is_err(), "{bad} must not parse");
         }
